@@ -26,7 +26,10 @@ module decoder_control (
   output            is_auipc,
   output            is_lui,
   output            reg_write,
-  output            ebreak_hit
+  output            ebreak_hit,
+  // 7.2 VMAC signals
+  output is_vmac,
+  output reg [1:0] vmac_ctrl
 
 );
 
@@ -43,7 +46,8 @@ module decoder_control (
   wire is_b_type = (opcode == 7'b1100011);
   wire is_u_type = (opcode == 7'b0110111) || (opcode == 7'b0010111);
   wire is_j_type = (opcode == 7'b1101111);
-
+  // 7.2 VMAC type
+  wire is_vmac_type = (opcode == 7'b1011011) && (funct3 == 3'b001);  // Opcode=0x5B, funct3=001
 
   assign rd  = insn[11:7];
   assign rs1 = is_u_type ? 5'b00000 : insn[19:15];
@@ -101,6 +105,9 @@ module decoder_control (
         3'b110, 3'b111: alu_ctrl = 4'b1001; // BLTU, BGEU (SLTU)
         default:        alu_ctrl = 4'bxxxx;
       endcase
+    // 7.2 VMAC ALU control
+    end else if (is_vmac_type) begin
+      alu_ctrl = 4'bxxxx;  // VMAC는 ALU 사용 안함, 근데 일케 설정해도 되는건가?
     end else begin
       alu_ctrl = 4'b0000; // ADD (default for loads, stores, LUI, AUIPC)
     end
@@ -118,6 +125,20 @@ module decoder_control (
     endcase
   end
 
+  // 7.2 VMAC control signals
+  always @(*) begin
+    if (is_vmac_type) begin
+      case (funct7)
+        7'b0000000: vmac_ctrl = 2'b00; // PVADD
+        7'b0000001: vmac_ctrl = 2'b01; // PVMUL
+        7'b0000010: vmac_ctrl = 2'b10; // PVMAC
+        7'b0000011: vmac_ctrl = 2'b11; // PVMUL_UPPER
+        default:    vmac_ctrl = 2'bxx;
+      endcase
+    end else begin
+      vmac_ctrl = 2'b00;
+    end
+  end
   // Control signals
   assign alu_src2_sel = is_i_type || is_s_type || is_u_type;
   assign mem_write = is_s_type;
@@ -132,9 +153,12 @@ module decoder_control (
   assign is_auipc = (is_u_type && opcode == 7'b0010111);
   assign is_lui   = (is_u_type && opcode == 7'b0110111);
   
-
-  assign reg_write = !is_b_type && !is_s_type;
+  // 7.2 modified reg_write
+  assign reg_write = !is_b_type && !is_s_type || is_vmac_type;
 
   assign ebreak_hit = (is_i_type && opcode == 7'b1110011) && (funct3 == 3'b000);
+
+  // 7.2 modified is_vmac
+  assign is_vmac = is_vmac_type;
 
 endmodule
