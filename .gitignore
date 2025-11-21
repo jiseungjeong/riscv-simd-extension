@@ -1,0 +1,55 @@
+# Verilator build artifacts
+obj_dir/
+
+# Compiled firmware and object files
+*.o
+*.asm
+*.elf
+*.bin
+*.hex
+*.d
+
+# Waveform files
+*.vcd
+*.fst
+
+# Trace files
+*_trace.txt
+insn_trace.txt
+firmware_trace.txt
+firmware_instruction_trace.txt
+
+
+# Executables
+uart_echo
+example
+firmware
+
+# Build artifacts
+*.a
+*.so
+*.dylib
+
+# Test outputs
+tests/*.o
+tests/*.bin
+tests/*.d
+
+firmware/firmware.map
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Debugging files
+*.log
+*.out
+a.out
+
+# Backup files
+*.bak
+*~

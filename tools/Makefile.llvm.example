@@ -1,0 +1,241 @@
+# Example Makefile for building with LLVM/Clang for rv32im_zicsr
+# This demonstrates how to use LLVM instead of GCC
+
+# =============================================================================
+# Toolchain Selection
+# =============================================================================
+# Set USE_LLVM=1 to use LLVM/Clang, or USE_LLVM=0 to use GCC
+USE_LLVM ?= 1
+
+# Path to LLVM installation (adjust as needed)
+LLVM_DIR ?= $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/riscv-toolchain-sources/llvm-install
+
+# =============================================================================
+# Toolchain Configuration
+# =============================================================================
+
+ifeq ($(USE_LLVM),1)
+    # LLVM/Clang toolchain
+    CC = $(LLVM_DIR)/bin/clang
+    CXX = $(LLVM_DIR)/bin/clang++
+    AS = $(LLVM_DIR)/bin/clang
+    LD = $(LLVM_DIR)/bin/ld.lld
+    AR = $(LLVM_DIR)/bin/llvm-ar
+    OBJCOPY = $(LLVM_DIR)/bin/llvm-objcopy
+    OBJDUMP = $(LLVM_DIR)/bin/llvm-objdump
+    SIZE = $(LLVM_DIR)/bin/llvm-size
+
+    # Clang requires explicit target specification
+    TARGET_PREFIX = --target=riscv32-unknown-elf
+
+    $(info Using LLVM/Clang toolchain from $(LLVM_DIR))
+else
+    # GCC toolchain (traditional)
+    CC = riscv64-unknown-elf-gcc
+    CXX = riscv64-unknown-elf-g++
+    AS = riscv64-unknown-elf-as
+    LD = riscv64-unknown-elf-ld
+    AR = riscv64-unknown-elf-ar
+    OBJCOPY = riscv64-unknown-elf-objcopy
+    OBJDUMP = riscv64-unknown-elf-objdump
+    SIZE = riscv64-unknown-elf-size
+
+    TARGET_PREFIX =
+
+    $(info Using GCC toolchain)
+endif
+
+# =============================================================================
+# Architecture Configuration
+# =============================================================================
+
+# Architecture: rv32im_zicsr
+#   rv32 - 32-bit RISC-V
+#   i    - Base integer instruction set
+#   m    - Integer multiplication and division
+#   zicsr - Control and Status Register instructions
+ARCH = rv32im_zicsr
+
+# ABI: ilp32
+#   i  - Integer calling convention
+#   lp - Long and pointers are 32-bit
+#   32 - 32-bit architecture
+ABI = ilp32
+
+# =============================================================================
+# Compiler and Linker Flags
+# =============================================================================
+
+# Common flags for both C and Assembly
+ARCH_FLAGS = $(TARGET_PREFIX) -march=$(ARCH) -mabi=$(ABI)
+
+# C compiler flags
+CFLAGS = $(ARCH_FLAGS)
+CFLAGS += -ffreestanding          # Don't assume hosted environment
+CFLAGS += -nostdlib              # Don't link standard library
+CFLAGS += -O2                    # Optimize for speed
+CFLAGS += -g                     # Include debug info
+CFLAGS += -Wall                  # Enable warnings
+CFLAGS += -Wextra                # Extra warnings
+
+# Assembler flags
+ASFLAGS = $(ARCH_FLAGS)
+
+# Linker flags
+LDFLAGS = -T link.ld             # Use custom linker script
+LDFLAGS += -nostdlib             # Don't link standard library
+LDFLAGS += --gc-sections         # Remove unused sections
+LDFLAGS += -Map=output.map       # Generate map file
+
+# =============================================================================
+# Source Files
+# =============================================================================
+
+C_SRCS = main.c utils.c
+ASM_SRCS = start.S
+C_OBJS = $(C_SRCS:.c=.o)
+ASM_OBJS = $(ASM_SRCS:.S=.o)
+ALL_OBJS = $(ASM_OBJS) $(C_OBJS)
+
+# Output files
+TARGET = program
+ELF = $(TARGET).elf
+BIN = $(TARGET).bin
+HEX = $(TARGET).hex
+DIS = $(TARGET).dis
+MAP = $(TARGET).map
+
+# =============================================================================
+# Build Rules
+# =============================================================================
+
+.PHONY: all clean disasm size help
+
+all: $(BIN) $(HEX) $(DIS)
+
+# Link ELF file
+$(ELF): $(ALL_OBJS) link.ld
+	@echo "Linking $@..."
+ifeq ($(USE_LLVM),1)
+	$(LD) $(LDFLAGS) $(ALL_OBJS) -o $@
+else
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS) $(ALL_OBJS) -o $@ -lgcc
+endif
+	@echo "Build complete: $@"
+
+# Generate binary file
+$(BIN): $(ELF)
+	@echo "Creating binary $@..."
+	$(OBJCOPY) -O binary $< $@
+
+# Generate hex file (for Verilog $readmemh)
+$(HEX): $(ELF)
+	@echo "Creating hex file $@..."
+	$(OBJCOPY) -O verilog $< $@
+
+# Generate disassembly
+$(DIS): $(ELF)
+	@echo "Generating disassembly $@..."
+	$(OBJDUMP) -D -S $< > $@
+
+# Compile C source files
+%.o: %.c
+	@echo "Compiling $<..."
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Compile assembly files
+%.o: %.S
+	@echo "Assembling $<..."
+ifeq ($(USE_LLVM),1)
+	$(AS) $(ASFLAGS) -c $< -o $@
+else
+	$(CC) $(ARCH_FLAGS) -c $< -o $@
+endif
+
+# =============================================================================
+# Utility Targets
+# =============================================================================
+
+# Disassemble the ELF file
+disasm: $(DIS)
+	@cat $(DIS)
+
+# Show size information
+size: $(ELF)
+	@echo "Size information:"
+	@$(SIZE) $<
+
+# Clean build artifacts
+clean:
+	@echo "Cleaning..."
+	@rm -f $(ALL_OBJS) $(ELF) $(BIN) $(HEX) $(DIS) $(MAP)
+	@echo "Clean complete"
+
+# Show help
+help:
+	@echo "Makefile for LLVM/Clang RISC-V rv32im_zicsr"
+	@echo ""
+	@echo "Usage:"
+	@echo "  make              - Build all outputs (default)"
+	@echo "  make USE_LLVM=1   - Build with LLVM/Clang (default)"
+	@echo "  make USE_LLVM=0   - Build with GCC"
+	@echo "  make disasm       - Show disassembly"
+	@echo "  make size         - Show binary size"
+	@echo "  make clean        - Remove build artifacts"
+	@echo "  make help         - Show this message"
+	@echo ""
+	@echo "Current configuration:"
+	@echo "  Toolchain: $(if $(filter 1,$(USE_LLVM)),LLVM/Clang,GCC)"
+	@echo "  Architecture: $(ARCH)"
+	@echo "  ABI: $(ABI)"
+	@echo "  Compiler: $(CC)"
+	@echo "  Linker: $(LD)"
+	@echo ""
+	@echo "Output files:"
+	@echo "  $(ELF) - ELF executable"
+	@echo "  $(BIN) - Raw binary"
+	@echo "  $(HEX) - Hex file for Verilog"
+	@echo "  $(DIS) - Disassembly listing"
+	@echo "  $(MAP) - Linker map file"
+
+# =============================================================================
+# Debug Targets
+# =============================================================================
+
+.PHONY: check-toolchain
+
+# Verify toolchain is available
+check-toolchain:
+	@echo "Checking toolchain..."
+	@echo "CC: $(CC)"
+	@$(CC) --version | head -n 1 || echo "ERROR: Compiler not found"
+	@echo ""
+	@echo "LD: $(LD)"
+	@$(LD) --version | head -n 1 || echo "ERROR: Linker not found"
+	@echo ""
+	@echo "OBJCOPY: $(OBJCOPY)"
+	@$(OBJCOPY) --version | head -n 1 || echo "ERROR: objcopy not found"
+	@echo ""
+	@echo "OBJDUMP: $(OBJDUMP)"
+	@$(OBJDUMP) --version | head -n 1 || echo "ERROR: objdump not found"
+
+# Show all variables
+debug-vars:
+	@echo "USE_LLVM = $(USE_LLVM)"
+	@echo "LLVM_DIR = $(LLVM_DIR)"
+	@echo "CC = $(CC)"
+	@echo "CXX = $(CXX)"
+	@echo "AS = $(AS)"
+	@echo "LD = $(LD)"
+	@echo "AR = $(AR)"
+	@echo "OBJCOPY = $(OBJCOPY)"
+	@echo "OBJDUMP = $(OBJDUMP)"
+	@echo "SIZE = $(SIZE)"
+	@echo "ARCH = $(ARCH)"
+	@echo "ABI = $(ABI)"
+	@echo "CFLAGS = $(CFLAGS)"
+	@echo "ASFLAGS = $(ASFLAGS)"
+	@echo "LDFLAGS = $(LDFLAGS)"
+	@echo "C_SRCS = $(C_SRCS)"
+	@echo "ASM_SRCS = $(ASM_SRCS)"
+	@echo "ALL_OBJS = $(ALL_OBJS)"

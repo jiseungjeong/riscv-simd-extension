@@ -1,0 +1,53 @@
+# Generated weights and data
+
+mnist_data/
+
+# Python virtual environment
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# NumPy files
+*.npy
+
+# Compiled binaries
+mnist_inference
+mnist_embedded_test
+mnist_benchmark
+
+# Object files
+*.o
+*.so
+*.a
+
+# ELF binaries
+*.elf
+*.bin
+*.hex
+
+# Waveforms
+*.vcd
+*.fst
+
+# Logs
+log.txt
+*.log
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
