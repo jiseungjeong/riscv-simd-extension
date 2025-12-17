@@ -346,6 +346,20 @@ const struct riscv_opcode riscv_opcodes[] =
 {"pvmul_upper", 0, INSN_CLASS_I, "d,s,t", MATCH_PVMUL_UPPER, MASK_PVMUL_UPPER, match_opcode, 0},
 
 
+/*  Wide Vector Extension Instructions  */
+/* Format: vd, vs1, vs2 for arithmetic; vd, rs1 for load; vs2, rs1 for store */
+{"vadd.b",    0, INSN_CLASS_I, "d,s,t", MATCH_VADD_B, MASK_VADD_B, match_opcode, 0},
+{"vadd.h",    0, INSN_CLASS_I, "d,s,t", MATCH_VADD_H, MASK_VADD_H, match_opcode, 0},
+{"vadd.w",    0, INSN_CLASS_I, "d,s,t", MATCH_VADD_W, MASK_VADD_W, match_opcode, 0},
+{"vsub.b",    0, INSN_CLASS_I, "d,s,t", MATCH_VSUB_B, MASK_VSUB_B, match_opcode, 0},
+{"vsub.h",    0, INSN_CLASS_I, "d,s,t", MATCH_VSUB_H, MASK_VSUB_H, match_opcode, 0},
+{"vsub.w",    0, INSN_CLASS_I, "d,s,t", MATCH_VSUB_W, MASK_VSUB_W, match_opcode, 0},
+{"vmul.b",    0, INSN_CLASS_I, "d,s,t", MATCH_VMUL_B, MASK_VMUL_B, match_opcode, 0},
+{"vmul.h",    0, INSN_CLASS_I, "d,s,t", MATCH_VMUL_H, MASK_VMUL_H, match_opcode, 0},
+{"vmul.w",    0, INSN_CLASS_I, "d,s,t", MATCH_VMUL_W, MASK_VMUL_W, match_opcode, 0},
+{"vld",       0, INSN_CLASS_I, "d,s",   MATCH_VLD,    MASK_VLD,    match_opcode, 0},
+{"vst",       0, INSN_CLASS_I, "t,s",   MATCH_VST,    MASK_VST,    match_opcode, 0},
+
 /* Basic RVI instructions and aliases.  */
 {"unimp",       0, INSN_CLASS_C, "",          0, 0xffffU, match_opcode, INSN_ALIAS },
 {"unimp",       0, INSN_CLASS_I, "",          MATCH_CSRRW|(CSR_CYCLE << OP_SH_CSR), 0xffffffffU,  match_opcode, 0 }, /* csrw cycle, x0  */

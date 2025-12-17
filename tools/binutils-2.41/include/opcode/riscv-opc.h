@@ -2957,6 +2957,39 @@
 #define MATCH_PVMUL_UPPER 0x0600105b
 #define MASK_PVMUL_UPPER  0xfe00707f
 
+/* Wide Vector Extension Instructions  */
+/* VADD  */
+#define MATCH_VADD_B      0x0000205b
+#define MASK_VADD_B       0xfe00707f
+#define MATCH_VADD_H      0x4000205b
+#define MASK_VADD_H       0xfe00707f
+#define MATCH_VADD_W      0x8000205b
+#define MASK_VADD_W       0xfe00707f
+
+/* VSUB  */
+#define MATCH_VSUB_B      0x0200205b
+#define MASK_VSUB_B       0xfe00707f
+#define MATCH_VSUB_H      0x4200205b
+#define MASK_VSUB_H       0xfe00707f
+#define MATCH_VSUB_W      0x8200205b
+#define MASK_VSUB_W       0xfe00707f
+
+/* VMUL  */
+#define MATCH_VMUL_B      0x0400205b
+#define MASK_VMUL_B       0xfe00707f
+#define MATCH_VMUL_H      0x4400205b
+#define MASK_VMUL_H       0xfe00707f
+#define MATCH_VMUL_W      0x8400205b
+#define MASK_VMUL_W       0xfe00707f
+
+/* VLD  */
+#define MATCH_VLD         0x0800205b
+#define MASK_VLD          0xfe00707f
+
+/* VST  */
+#define MATCH_VST         0x0a00205b
+#define MASK_VST          0xfe00707f
+
 #endif /* RISCV_ENCODING_H */
 #ifdef DECLARE_INSN
 DECLARE_INSN(slli_rv32, MATCH_SLLI_RV32, MASK_SLLI_RV32)
