@@ -55,14 +55,17 @@ a.out
 *~
 
 # Binutils build artifacts (tools/)
+# Source tarball - large file, download with script
 tools/binutils-*.tar.xz
-tools/binutils-2.*/
+# Build directories - generated files
 tools/binutils-build/
 tools/binutils-install/
 tools/binutils-build.log
 tools/binutils-configure.log
+# Note: tools/binutils-2.*/ source is tracked for custom instruction modifications
 
 # LLVM build artifacts (tools/)
-tools/llvm-project*/
+tools/llvm-project*.tar.xz
 tools/llvm-build/
 tools/llvm-install/
+# Note: tools/llvm-project*/ source is tracked if modified
