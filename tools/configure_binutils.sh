@@ -153,6 +153,7 @@ echo "" >> "$CONFIG_LOG_FILE"
 # Configure with platform-specific flags
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # Use system zlib on macOS to avoid conflicts
+    # Disable zstd to avoid x86_64/arm64 architecture mismatch on Apple Silicon
     if $ARCH_PREFIX env MAKEINFO="${MAKEINFO:-missing}" \
         $BINUTILS_SRC/configure \
         --prefix=$INSTALL_DIR \
@@ -160,7 +161,8 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
         --enable-multilib \
         --disable-nls \
         --disable-werror \
-        --with-system-zlib >> "$CONFIG_LOG_FILE" 2>&1; then
+        --with-system-zlib \
+        --without-zstd >> "$CONFIG_LOG_FILE" 2>&1; then
 
         print_progress "✓ Configuration completed successfully"
         echo "$(date): Configuration completed successfully" >> "$CONFIG_LOG_FILE"
@@ -196,13 +198,13 @@ CONFIG_INFO_FILE="$BUILD_DIR/configure.info"
 cat > "$CONFIG_INFO_FILE" << EOF
 # Binutils Configuration Info
 # Generated: $(date)
-BINUTILS_VERSION=$BINUTILS_VERSION
-BINUTILS_SRC=$BINUTILS_SRC
-BUILD_DIR=$BUILD_DIR
-INSTALL_DIR=$INSTALL_DIR
-PLATFORM=$ARCH_INFO
-TARGET=riscv64-unknown-elf
-ARCH_PREFIX=$ARCH_PREFIX
+BINUTILS_VERSION="$BINUTILS_VERSION"
+BINUTILS_SRC="$BINUTILS_SRC"
+BUILD_DIR="$BUILD_DIR"
+INSTALL_DIR="$INSTALL_DIR"
+PLATFORM="$ARCH_INFO"
+TARGET="riscv64-unknown-elf"
+ARCH_PREFIX="$ARCH_PREFIX"
 EOF
 
 print_info "Configuration saved to: $CONFIG_INFO_FILE"

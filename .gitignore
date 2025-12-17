@@ -53,3 +53,16 @@ a.out
 # Backup files
 *.bak
 *~
+
+# Binutils build artifacts (tools/)
+tools/binutils-*.tar.xz
+tools/binutils-2.*/
+tools/binutils-build/
+tools/binutils-install/
+tools/binutils-build.log
+tools/binutils-configure.log
+
+# LLVM build artifacts (tools/)
+tools/llvm-project*/
+tools/llvm-build/
+tools/llvm-install/
