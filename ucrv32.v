@@ -196,7 +196,7 @@ module ucrv32 (
     .ebreak_hit(dec_ebreak_hit),
     // 7.3 VMAC decoder outputs
     .is_vmac(dec_is_vmac),
-    .vmac_ctrl(dec_vmac_ctrl)
+    .vmac_ctrl(dec_vmac_ctrl),
     // new vector decoder outputs
     .is_vec_op(dec_is_vec_op),
     .vec_op(dec_vec_op),
@@ -243,7 +243,7 @@ module ucrv32 (
   valu valu_inst(
     .clk(clk),
     .rst_n(resetn),
-    .op(vec_op_reg), // 00=VADD, 01=VSUB, 10=VMUL
+    .op(vec_op_reg[1:0]), // 00=VADD, 01=VSUB, 10=VMUL
     .sew(vec_sew_reg),
     .vs1_data(vs1_data_reg),
     .vs2_data(vs2_data_reg),
@@ -256,7 +256,7 @@ module ucrv32 (
   wire vlsu_done;
   wire [63:0] vlsu_load_data;
   wire [31:0] vlsu_mem_addr;
-  wire [31:0] vlsu_mem_wmask;
+  wire [31:0] vlsu_mem_wdata;
   wire [3:0] vlsu_mem_wmask;
   wire vlsu_mem_write;
   wire vlsu_mem_valid;
@@ -530,7 +530,7 @@ module ucrv32 (
           end
           
           // 7.3 VMAC operation
-          if (is_vmac_reg) begin
+          else if (is_vmac_reg) begin
             if (!vmac_busy) begin 
               vmac_valid_in_reg <= 1'b1; // if not busy, start vmac
               vmac_busy <= 1'b1;
@@ -620,6 +620,7 @@ module ucrv32 (
 
         STATE_WB: begin
           reg_write_reg <= 1'b0;
+          vec_reg_write_reg <= 1'b0;
           cpu_state <= STATE_FETCH;
           
         end

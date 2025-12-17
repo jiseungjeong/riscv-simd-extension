@@ -29,7 +29,7 @@ module decoder_control (
   output            ebreak_hit,
   // 7.2 VMAC signals
   output is_vmac,
-  output reg [1:0] vmac_ctrl
+  output reg [1:0] vmac_ctrl,
 
   // new vector extension signals
   output is_vec_op,

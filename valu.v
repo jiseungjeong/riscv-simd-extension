@@ -10,7 +10,7 @@ module valu(
     input wire [63:0] vs1_data, // source operand 1
     input wire [63:0] vs2_data, // source operand 2
     input wire valid_in, // start operation
-    output reg valid_out // result ready
+    output reg valid_out, // result ready
     output reg [63:0] result // output result
 );
 
@@ -34,8 +34,8 @@ module valu(
         for (i = 0; i < 8; i = i + 1) begin: gen_lanes_8
             // assign a8[i] = vs1_data[i*8 +: 8];
             // assign b8[i] = vs2_data[i*8 +: 8];
-            assign a8[i] = vs1_data[i*8+7 : i*8];
-            assign b8[i] = vs2_data[i*8+7 : i*8];
+            assign a8[i] = vs1_data[i*8 +: 8];
+            assign b8[i] = vs2_data[i*8 +:8];
         end
     endgenerate
 
@@ -45,8 +45,8 @@ module valu(
     genvar j;
     generate
         for (j = 0; j < 4; j = j + 1) begin: gen_lanes_16
-            assign a16[j] = vs1_data[j*16+15 : j*16];
-            assign b16[j] = vs2_data[j*16+15 : j*16];
+            assign a16[j] = vs1_data[j*16 +: 16];
+            assign b16[j] = vs2_data[j*16 +: 16];
         end
     endgenerate
 
@@ -56,8 +56,8 @@ module valu(
     genvar k;
     generate
         for (k = 0; k < 2; k = k + 1) begin: gen_lanes_32
-            assign a32[k] = vs1_data[k*32+31 : k*32];
-            assign b32[k] = vs2_data[k*32+31 : k*32];
+            assign a32[k] = vs1_data[k*32 +: 32];
+            assign b32[k] = vs2_data[k*32 +: 32];
         end
     endgenerate
 
@@ -240,5 +240,5 @@ module valu(
             end
         end
     end
-    
+
 endmodule
