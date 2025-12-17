@@ -121,6 +121,17 @@ module ucrv32 (
   reg        is_vmac_reg;
   reg [1:0]  vmac_ctrl_reg;
 
+  // new vector extension control registers
+  reg        is_vec_op_reg;
+  reg [2:0]  vec_op_reg;
+  reg [1:0]  vec_sew_reg;
+  reg        is_vec_load_reg;
+  reg        is_vec_store_reg;
+  reg        vec_reg_write_reg;
+  reg [4:0] vd_reg; // vector destination register
+  reg vec_busy;
+  reg vec_valid_in_reg; // start signal for vector units
+  reg vlsu_start_reg; // start signal for vector load/store unit
 
   // Decoder and control outputs
   wire [4:0]  dec_rd;
@@ -146,6 +157,14 @@ module ucrv32 (
   // 7.3 VMAC decoder outputs
   wire        dec_is_vmac;
   wire [1:0]  dec_vmac_ctrl;
+
+  // new vector decoder outputs
+  wire        dec_is_vec_op;
+  wire [2:0]  dec_vec_op;
+  wire [1:0]  dec_vec_sew;
+  wire        dec_is_vec_load;
+  wire        dec_is_vec_store;
+  wire        dec_vec_reg_write;
 
   // 7.3 VMAC handshake + result wires
   reg        vmac_valid_in_reg;
@@ -178,6 +197,13 @@ module ucrv32 (
     // 7.3 VMAC decoder outputs
     .is_vmac(dec_is_vmac),
     .vmac_ctrl(dec_vmac_ctrl)
+    // new vector decoder outputs
+    .is_vec_op(dec_is_vec_op),
+    .vec_op(dec_vec_op),
+    .vec_sew(dec_vec_sew),
+    .is_vec_load(dec_is_vec_load),
+    .is_vec_store(dec_is_vec_store),
+    .vec_reg_write(dec_vec_reg_write)
   );
 
   // 7.3 VMAC instance
@@ -191,6 +217,72 @@ module ucrv32 (
     .valid_out(vmac_valid_out),
     .result(vmac_result_wire)
   );
+
+  // new vector register file instance
+  wire [63:0] vrf_rdata1, vrf_rdata2;
+  wire [63:0] vrf_wdata;
+  wire vrf_wen;
+
+  vreg_file vreg_file_inst(
+    .clk(clk),
+    .wen(vrf_wen),
+    .vs1(dec_rs1),
+    .vs2(dec_rs2),
+    .vd(vd_reg),
+    .wdata(vrf_wdata),
+    .rdata1(vrf_rdata1),
+    .rdata2(vrf_rdata2)
+  );
+
+  // new vector alu
+  wire valu_valid_out;
+  wire [63:0] valu_result;
+  reg [63:0] vs1_data_reg;
+  reg [63:0] vs2_data_reg;
+  
+  valu valu_inst(
+    .clk(clk),
+    .rst_n(resetn),
+    .op(vec_op_reg), // 00=VADD, 01=VSUB, 10=VMUL
+    .sew(vec_sew_reg),
+    .vs1_data(vs1_data_reg),
+    .vs2_data(vs2_data_reg),
+    .valid_in(vec_valid_in_reg && !is_vec_load_reg && !is_vec_store_reg),
+    .valid_out(valu_valid_out),
+    .result(valu_result)
+  );
+
+  // new vector load/store unit
+  wire vlsu_done;
+  wire [63:0] vlsu_load_data;
+  wire [31:0] vlsu_mem_addr;
+  wire [31:0] vlsu_mem_wmask;
+  wire [3:0] vlsu_mem_wmask;
+  wire vlsu_mem_write;
+  wire vlsu_mem_valid;
+
+  vlsu vlsu_inst(
+    .clk(clk),
+    .rst_n(resetn),
+    .start(vlsu_start_reg),
+    .is_store(is_vec_store_reg),
+    .base_addr(rdata1_reg),
+    .store_data(vs2_data_reg),
+    .done(vlsu_done),
+    .load_data(vlsu_load_data),
+    .mem_addr(vlsu_mem_addr),
+    .mem_wdata(vlsu_mem_wdata),
+    .mem_wmask(vlsu_mem_wmask),
+    .mem_write(vlsu_mem_write),
+    .mem_valid(vlsu_mem_valid),
+    .mem_ready(dmem_req_ready),
+    .mem_resp_valid(dmem_resp_valid),
+    .mem_resp_rdata(dmem_resp_rdata)
+  );
+
+  // vector result storage
+  reg [63:0] vec_result_reg;
+
 
   wire [31:0] rf_rdata1, rf_rdata2;
   wire [31:0] wb_data;
@@ -230,12 +322,19 @@ module ucrv32 (
   reg [31:0] dmem_req_wdata_reg;
   reg [3:0]  dmem_req_wmask_reg;
 
-  assign dmem_req_valid = dmem_req_valid_reg;
-  assign dmem_req_write = dmem_req_write_reg;
-  assign dmem_req_addr  = dmem_req_addr_reg;
-  assign dmem_req_wdata = dmem_req_wdata_reg;
-  assign dmem_req_wmask = dmem_req_wmask_reg;
+  // memory interface, mux between scalar and vector access
+  wire vec_mem_active = (is_vec_load_reg || is_vec_store_reg) && vec_busy;
+
+  assign dmem_req_valid = vec_mem_active ? vlsu_mem_valid : dmem_req_valid_reg;
+  assign dmem_req_write = vec_mem_active ? vlsu_mem_write : dmem_req_write_reg;
+  assign dmem_req_addr  = vec_mem_active ? vlsu_mem_addr : dmem_req_addr_reg;
+  assign dmem_req_wdata = vec_mem_active ? vlsu_mem_wdata : dmem_req_wdata_reg;
+  assign dmem_req_wmask = vec_mem_active ? vlsu_mem_wmask : dmem_req_wmask_reg;
   assign dmem_resp_ready = 1'b1;
+
+  // new vector register file write logic
+  assign vrf_wen = (cpu_state == STATE_WB) && vec_reg_write_reg;
+  assign vrf_wdata = vec_result_reg;
 
   // Instruction memory interface
   assign imem_addr = pc_reg;
@@ -323,6 +422,21 @@ module ucrv32 (
       vmac_valid_in_reg <= 1'b0;
       is_vmac_reg <= 1'b0;
       vmac_ctrl_reg <= 2'b00;
+      
+      // new vector reset
+      is_vec_op_reg <= 1'b0;
+      vec_op_reg <= 3'b000;
+      vec_sew_reg <= 2'b00;
+      is_vec_load_reg <= 1'b0;
+      is_vec_store_reg <= 1'b0;
+      vec_reg_write_reg <= 1'b0;
+      vd_reg <= 5'd0;
+      vec_busy <= 1'b0;
+      vec_valid_in_reg <= 1'b0;
+      vlsu_start_reg <= 1'b0;
+      vs1_data_reg <= 64'd0;
+      vs2_data_reg <= 64'd0;
+      vec_result_reg <= 64'd0;
     end else begin
       case (cpu_state)
         STATE_FETCH: begin
@@ -358,14 +472,66 @@ module ucrv32 (
           is_vmac_reg <= dec_is_vmac;
           vmac_ctrl_reg <= dec_vmac_ctrl;
 
+          // new vector control signals
+          is_vec_op_reg <= dec_is_vec_op;
+          vec_op_reg <= dec_vec_op;
+          vec_sew_reg <= dec_vec_sew;
+          is_vec_load_reg <= dec_is_vec_load;
+          is_vec_store_reg <= dec_is_vec_store;
+          vec_reg_write_reg <= dec_vec_reg_write;
+          vd_reg <= dec_rd;
+          vs1_data_reg <= vrf_rdata1; // read vector operands
+          vs2_data_reg <= vrf_rdata2;
+
           cpu_state <= STATE_EXEC;
         end
 
         STATE_EXEC: begin
+          // new vector operation
+          if (is_vec_op_reg) begin
+            if (!vec_busy) begin
+              // start vector operation
+              vec_busy <= 1'b1;
+              if (is_vec_load_reg || is_vec_store_reg) begin
+                vlsu_start_reg <= 1'b1;
+              end else begin
+                vec_valid_in_reg <= 1'b1;
+              end
+            end else begin
+              vlsu_start_reg <= 1'b0;
+              vec_valid_in_reg <= 1'b0;
+            end
 
+            // check for completion
+            if (is_vec_load_reg || is_vec_store_reg) begin
+              if (vlsu_done) begin
+                if (is_vec_load_reg) begin
+                  vec_result_reg <= vlsu_load_data;
+                end
+                pc_reg <= pc_plus_4;
+                vec_busy <= 1'b0;
+                vlsu_start_reg <= 1'b0;
+                cpu_state <= STATE_WB;
+              end else begin
+                cpu_state <= STATE_EXEC;
+              end
+            end else begin
+              // VALU operation (VADD, VSUB, VMUL)
+              if (valu_valid_out) begin
+                vec_result_reg <= valu_result;
+                pc_reg <= pc_plus_4;
+                vec_busy <= 1'b0;
+                vec_valid_in_reg <= 1'b0;
+                cpu_state <= STATE_WB;
+              end else begin
+                cpu_state <= STATE_EXEC;
+              end
+            end
+          end
+          
           // 7.3 VMAC operation
           if (is_vmac_reg) begin
-            if (!vmac_busy) begin // 언제 busy로 변하지?
+            if (!vmac_busy) begin 
               vmac_valid_in_reg <= 1'b1; // if not busy, start vmac
               vmac_busy <= 1'b1;
             end else begin
