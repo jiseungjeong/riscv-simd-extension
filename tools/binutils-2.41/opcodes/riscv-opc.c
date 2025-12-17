@@ -358,7 +358,7 @@ const struct riscv_opcode riscv_opcodes[] =
 {"vmul.h",    0, INSN_CLASS_I, "d,s,t", MATCH_VMUL_H, MASK_VMUL_H, match_opcode, 0},
 {"vmul.w",    0, INSN_CLASS_I, "d,s,t", MATCH_VMUL_W, MASK_VMUL_W, match_opcode, 0},
 {"vld",       0, INSN_CLASS_I, "d,s",   MATCH_VLD,    MASK_VLD,    match_opcode, 0},
-{"vst",       0, INSN_CLASS_I, "t,s",   MATCH_VST,    MASK_VST,    match_opcode, 0},
+{"vst",       0, INSN_CLASS_I, "d,s,t", MATCH_VST,    MASK_VST,    match_opcode, 0},
 
 /* Basic RVI instructions and aliases.  */
 {"unimp",       0, INSN_CLASS_C, "",          0, 0xffffU, match_opcode, INSN_ALIAS },

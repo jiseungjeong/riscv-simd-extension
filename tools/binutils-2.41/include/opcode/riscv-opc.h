@@ -2984,11 +2984,11 @@
 
 /* VLD  */
 #define MATCH_VLD         0x0800205b
-#define MASK_VLD          0xfe00707f
+#define MASK_VLD          0xfff0707f  /* rs2=0 enforced for 2-operand format */
 
 /* VST  */
 #define MATCH_VST         0x0a00205b
-#define MASK_VST          0xfe00707f
+#define MASK_VST          0xfe00707f  /* d,s,t format - rd specified by assembler */
 
 #endif /* RISCV_ENCODING_H */
 #ifdef DECLARE_INSN
