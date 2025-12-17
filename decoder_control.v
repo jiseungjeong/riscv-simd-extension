@@ -31,6 +31,13 @@ module decoder_control (
   output is_vmac,
   output reg [1:0] vmac_ctrl
 
+  // new vector extension signals
+  output is_vec_op,
+  output reg [2:0] vec_op,
+  output reg [1:0] vec_sew, // element width (00=8, 01=16, 10=32)
+  output is_vec_load,
+  output is_vec_store,
+  output vec_reg_write
 );
 
   // Extract fields from instruction
@@ -48,6 +55,19 @@ module decoder_control (
   wire is_j_type = (opcode == 7'b1101111);
   // 7.2 VMAC type
   wire is_vmac_type = (opcode == 7'b1011011) && (funct3 == 3'b001);  // Opcode=0x5B, funct3=001
+
+  // new vector extension types
+  // opcode=0x5B, funct3=010 for new vector instructions
+  wire is_vec_type = (opcode == 7'b1011011) && (funct3 == 3'b010);
+
+  // vector operation codes from funct7[4:0]
+  localparam VOP_VADD = 5'b00000;
+  localparam VOP_VSUB = 5'b00001;
+  localparam VOP_VMUL = 5'b00010;
+  localparam VOP_VLD = 5'b00100;
+  localparam VOP_VST = 5'b00101;
+  localparam VOP_VMOV_S2V = 5'b01000; // scalar to vector
+  localparam VOP_VMOV_V2S = 5'b01001; // vector to scalar
 
   assign rd  = insn[11:7];
   assign rs1 = is_u_type ? 5'b00000 : insn[19:15];
@@ -106,13 +126,54 @@ module decoder_control (
         default:        alu_ctrl = 4'bxxxx;
       endcase
     // 7.2 VMAC ALU control
-    end else if (is_vmac_type) begin
-      alu_ctrl = 4'bxxxx;  // VMAC는 ALU 사용 안함, 근데 일케 설정해도 되는건가?
+    end else if (is_vmac_type || is_vec_type) begin
+      alu_ctrl = 4'bxxxx;  
     end else begin
       alu_ctrl = 4'b0000; // ADD (default for loads, stores, LUI, AUIPC)
     end
   end
 
+  // new vector extension control signals
+  // SEW decoding from funct7[6:5]
+  always @(*) begin
+    if (is_vec_type) begin
+      vec_sew = funct7[6:5]; // 00=8bit, 01=16bit, 10=32bit
+    end else begin
+      vec_sew = 2'b00;
+    end
+  end
+  
+  // vector operation decoding from funct7[4:0]
+  always @(*) begin
+    if (is_vec_type) begin
+      case (funct7[4:0])
+        VOP_VADD: vec_op = 3'b000; // VADD
+        VOP_VSUB: vec_op = 3'b001; // VSUB
+        VOP_VMUL: vec_op = 3'b010; // VMUL
+        VOP_VLD: vec_op = 3'b011; // VLD
+        VOP_VST: vec_op = 3'b100; // VST
+        VOP_VMOV_S2V: vec_op = 3'b101; // VMOV_S2V
+        VOP_VMOV_V2S: vec_op = 3'b110; // VMOV_V2S
+        default: vec_op = 3'b111; // invalid
+      endcase
+    end else begin
+      vec_op = 3'b000;
+    end
+  end
+
+  // vector conrol signal assignments
+  assign is_vec_op = is_vec_type;
+  assign is_vec_load = is_vec_type && (funct7[4:0] == VOP_VLD);
+  assign is_vec_store = is_vec_type && (funct7[4:0] == VOP_VST);
+
+  // write to vector register for: VADD, VSUB, VMUL, VLD, VMOV_S2V
+  assign vec_reg_write = is_vec_type &&
+                          (funct7[4:0] == VOP_VADD ||
+                           funct7[4:0] == VOP_VSUB ||
+                           funct7[4:0] == VOP_VMUL ||
+                           funct7[4:0] == VOP_VLD ||
+                           funct7[4:0] == VOP_VMOV_S2V);
+  
   // Memory mask
   always @(*) begin
     case (funct3)
@@ -154,7 +215,7 @@ module decoder_control (
   assign is_lui   = (is_u_type && opcode == 7'b0110111);
   
   // 7.2 modified reg_write
-  assign reg_write = !is_b_type && !is_s_type || is_vmac_type;
+  assign reg_write = (!is_b_type && !is_s_type && !is_vec_type) || is_vmac_type;
 
   assign ebreak_hit = (is_i_type && opcode == 7'b1110011) && (funct3 == 3'b000);
 
