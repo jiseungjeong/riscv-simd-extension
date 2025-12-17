@@ -2946,6 +2946,17 @@
 #define CSR_VL 0xc20
 #define CSR_VTYPE 0xc21
 #define CSR_VLENB 0xc22
+
+// lab 7.7: Custom packed vector instructions
+#define MATCH_PVADD       0x0000105b
+#define MASK_PVADD        0xfe00707f
+#define MATCH_PVMUL       0x0200105b
+#define MASK_PVMUL        0xfe00707f
+#define MATCH_PVMAC       0x0400105b
+#define MASK_PVMAC        0xfe00707f
+#define MATCH_PVMUL_UPPER 0x0600105b
+#define MASK_PVMUL_UPPER  0xfe00707f
+
 #endif /* RISCV_ENCODING_H */
 #ifdef DECLARE_INSN
 DECLARE_INSN(slli_rv32, MATCH_SLLI_RV32, MASK_SLLI_RV32)

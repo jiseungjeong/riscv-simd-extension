@@ -339,6 +339,13 @@ const struct riscv_opcode riscv_opcodes[] =
 {"prefetch.w",  0, INSN_CLASS_ZICBOP, "Wif(s)", MATCH_PREFETCH_W, MASK_PREFETCH_W, match_opcode, 0 },
 {"pause",       0, INSN_CLASS_ZIHINTPAUSE, "", MATCH_PAUSE, MASK_PAUSE, match_opcode, 0 },
 
+// lab 7.7: Custom packed vector instructions
+{"pvadd",       0, INSN_CLASS_I, "d,s,t", MATCH_PVADD, MASK_PVADD, match_opcode, 0},
+{"pvmul",       0, INSN_CLASS_I, "d,s,t", MATCH_PVMUL, MASK_PVMUL, match_opcode, 0},
+{"pvmac",       0, INSN_CLASS_I, "d,s,t", MATCH_PVMAC, MASK_PVMAC, match_opcode, 0},
+{"pvmul_upper", 0, INSN_CLASS_I, "d,s,t", MATCH_PVMUL_UPPER, MASK_PVMUL_UPPER, match_opcode, 0},
+
+
 /* Basic RVI instructions and aliases.  */
 {"unimp",       0, INSN_CLASS_C, "",          0, 0xffffU, match_opcode, INSN_ALIAS },
 {"unimp",       0, INSN_CLASS_I, "",          MATCH_CSRRW|(CSR_CYCLE << OP_SH_CSR), 0xffffffffU,  match_opcode, 0 }, /* csrw cycle, x0  */
