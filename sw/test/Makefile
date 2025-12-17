@@ -15,8 +15,8 @@ OBJS = $(C_OBJS) $(ASM_OBJS)
 TEST_OBJS = $(addsuffix .o,$(basename $(wildcard tests/*.S)))
 
 # Toolchain
-#CC = riscv64-unknown-elf-gcc
-CC = clang
+CC = riscv64-unknown-elf-gcc
+# CC = clang
 AS = riscv64-unknown-elf-as
 LD = riscv64-unknown-elf-gcc
 OBJCOPY = riscv64-unknown-elf-objcopy
@@ -31,7 +31,7 @@ ABI = ilp32
 CFLAGS = -march=$(ARCH) -mabi=$(ABI) -ffreestanding -nostdlib -O3
 ASFLAGS = -march=$(ARCH) -mabi=$(ABI)
 # Enable vectorization explicitly
-CFLAGS += -fvectorize -fslp-vectorize
+# CFLAGS += -fvectorize -fslp-vectorize
 
 # Linker flags
 LDFLAGS = -march=$(ARCH) -mabi=$(ABI) -nostdlib -T test.lds

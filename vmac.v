@@ -30,6 +30,12 @@ module vmac(
     wire [15:0] b2_signed = {{8{b2[7]}}, b2};
     wire [15:0] b3_signed = {{8{b3[7]}}, b3};
 
+    // PVADD용 합 (16비트)
+    wire [15:0] sum0 = a0_signed + b0_signed;
+    wire [15:0] sum1 = a1_signed + b1_signed;
+    wire [15:0] sum2 = a2_signed + b2_signed;
+    wire [15:0] sum3 = a3_signed + b3_signed;
+
     // fsm and coutner
     reg [2:0] cycle_counter; // for counting cycles
     reg computing; // indicates if computation is ongoing
@@ -37,7 +43,7 @@ module vmac(
     // save the intermediate results
     reg [15:0] mult_results [0:3];
 
-    always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk) begin
         if (!rst_n) begin
             cycle_counter <= 3'b0;
             computing <= 1'b0;
@@ -54,10 +60,10 @@ module vmac(
         else if (computing) begin // after 1 cycle , 컴퓨팅 처리 똑바로
             case (ctrl)
                 2'b00: begin // PVADD 1 cycle
-                    result[7:0] <= (a0_signed + b0_signed)[7:0];
-                    result[15:8] <= (a1_signed + b1_signed)[7:0];
-                    result[23:16] <= (a2_signed + b2_signed)[7:0];
-                    result[31:24] <= (a3_signed + b3_signed)[7:0];
+                    result[7:0]   <= sum0[7:0];
+                    result[15:8]  <= sum1[7:0];
+                    result[23:16] <= sum2[7:0];
+                    result[31:24] <= sum3[7:0];
                     valid_out <= 1'b1;
                     computing <= 1'b0;
                 end
@@ -80,6 +86,9 @@ module vmac(
                             valid_out <= 1'b1;
                             computing <= 1'b0;
                             cycle_counter <= 3'b0;
+                        end
+                        default: begin
+                            // no operation
                         end
                     endcase
                 end
@@ -111,6 +120,9 @@ module vmac(
                             computing <= 1'b0;
                             cycle_counter <= 3'b0;
                         end
+                        default: begin
+                            // no operation
+                        end
                     endcase
                 end
                 2'b11: begin // PVMUL_UPPER 4 cycles
@@ -132,6 +144,9 @@ module vmac(
                             valid_out <= 1'b1;
                             computing <= 1'b0;
                             cycle_counter <= 3'b0;
+                        end
+                        default: begin
+                            // no operation
                         end
                     endcase
                 end

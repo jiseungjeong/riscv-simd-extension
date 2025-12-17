@@ -73,7 +73,8 @@ module ucrv32 (
   reg [31:0] mcause;
   reg [31:0] mstatus;
 
-  wire csr_addr;
+  // CSR 주소는 12비트
+  wire [11:0] csr_addr;
   assign csr_addr = imm_reg[11:0];
 
   always @ (posedge clk) begin
@@ -81,7 +82,7 @@ module ucrv32 (
       mtvec <= 32'd0;
       mepc <= 32'd0;
       mcause <= 32'd0;
-      mstatus <= 32'd0
+      mstatus <= 32'd0;
     end
     else begin
       if(cpu_state == STATE_WB) begin
@@ -116,6 +117,9 @@ module ucrv32 (
   reg        is_auipc_reg;
   reg        reg_write_reg;
   reg        ebreak_hit_reg;
+  // 7.3 VMAC control signals
+  reg        is_vmac_reg;
+  reg [1:0]  vmac_ctrl_reg;
 
 
   // Decoder and control outputs
@@ -139,6 +143,15 @@ module ucrv32 (
   wire        dec_is_lui;
   wire        dec_reg_write;
   wire        dec_ebreak_hit;
+  // 7.3 VMAC decoder outputs
+  wire        dec_is_vmac;
+  wire [1:0]  dec_vmac_ctrl;
+
+  // 7.3 VMAC handshake + result wires
+  reg        vmac_valid_in_reg;
+  wire       vmac_valid_out;
+  wire [31:0] vmac_result_wire;
+  reg vmac_busy; // CPU-side busy flag while vmac running, computing flag role
 
   decoder_control decoder_control_inst(
     .insn(insn_reg),
@@ -161,7 +174,22 @@ module ucrv32 (
     .is_auipc(dec_is_auipc),
     .is_lui(dec_is_lui),
     .reg_write(dec_reg_write),
-    .ebreak_hit(dec_ebreak_hit)
+    .ebreak_hit(dec_ebreak_hit),
+    // 7.3 VMAC decoder outputs
+    .is_vmac(dec_is_vmac),
+    .vmac_ctrl(dec_vmac_ctrl)
+  );
+
+  // 7.3 VMAC instance
+  vmac vmac_inst (
+    .clk(clk),
+    .rst_n(resetn),
+    .ctrl(vmac_ctrl_reg),
+    .a(rdata1_reg),        // use saved operands from decode
+    .b(rdata2_reg),
+    .valid_in(vmac_valid_in_reg),
+    .valid_out(vmac_valid_out),
+    .result(vmac_result_wire)
   );
 
   wire [31:0] rf_rdata1, rf_rdata2;
@@ -290,6 +318,11 @@ module ucrv32 (
       dmem_req_valid_reg <= 1'b0;
       reg_write_reg <= 1'b0;
       ebreak_hit_reg <= 1'b0;
+      // 7.3 VMAC reset
+      vmac_busy <= 1'b0;
+      vmac_valid_in_reg <= 1'b0;
+      is_vmac_reg <= 1'b0;
+      vmac_ctrl_reg <= 2'b00;
     end else begin
       case (cpu_state)
         STATE_FETCH: begin
@@ -321,56 +354,80 @@ module ucrv32 (
           is_auipc_reg <= dec_is_auipc;
           reg_write_reg <= dec_reg_write;
           ebreak_hit_reg <= dec_ebreak_hit;
+          // 7.3 VMAC control signals
+          is_vmac_reg <= dec_is_vmac;
+          vmac_ctrl_reg <= dec_vmac_ctrl;
 
           cpu_state <= STATE_EXEC;
         end
 
         STATE_EXEC: begin
-          // Execute ALU operation and determine branches
-          alu_out_reg <= alu_out;
-          // Handle branches and jumps
-          if (is_jal_reg) begin
-            pc_reg <= pc_plus_imm;
-          end else if (is_jalr_reg) begin
-            pc_reg <= {alu_out[31:1], 1'b0};
-          end else if (take_branch) begin
-            pc_reg <= pc_plus_imm;
-          end else if (!mem_read_reg && !mem_write_reg) begin
-            // No memory operation, go directly to WB
-            pc_reg <= pc_plus_4;
-          end
 
-          // Set up memory request if needed
-          if (mem_read_reg || mem_write_reg) begin
-            dmem_req_valid_reg <= 1'b1;
-            dmem_req_write_reg <= mem_write_reg;
-            dmem_req_addr_reg <= alu_out;
-
-            // Prepare write data with proper alignment
-            if (mem_write_reg) begin
-
-              if (mem_mask_reg == 32'h000000FF) begin
-                // Byte store
-                dmem_req_wdata_reg <= {4{rdata2_reg[7:0]}};
-                dmem_req_wmask_reg <= (alu_out[1:0] == 2'b00) ? 4'b0001 :
-                                       (alu_out[1:0] == 2'b01) ? 4'b0010 :
-                                       (alu_out[1:0] == 2'b10) ? 4'b0100 : 4'b1000;
-              end else if (mem_mask_reg == 32'h0000FFFF) begin
-                // Halfword store
-                dmem_req_wdata_reg <= {2{rdata2_reg[15:0]}};
-                dmem_req_wmask_reg <= alu_out[1] ? 4'b1100 : 4'b0011;
-              end else begin
-                // Word store
-                dmem_req_wdata_reg <= rdata2_reg;
-                dmem_req_wmask_reg <= 4'b1111;
-              end
+          // 7.3 VMAC operation
+          if (is_vmac_reg) begin
+            if (!vmac_busy) begin // 언제 busy로 변하지?
+              vmac_valid_in_reg <= 1'b1; // if not busy, start vmac
+              vmac_busy <= 1'b1;
+            end else begin
+              vmac_valid_in_reg <= 1'b0; // if busy, keep valid_in low
             end
-            cpu_state <= STATE_MEM;
+            if (vmac_valid_out) begin // vmac done
+              alu_out_reg <= vmac_result_wire; // get result
+              pc_reg <= pc_plus_4; // next pc
+              vmac_busy <= 1'b0; // clear busy flag
+              vmac_valid_in_reg <= 1'b0; // clear valid_in
+              cpu_state <= STATE_WB; // go to WB
+            end else begin
+              // stay in EXEC while vmac is running
+              cpu_state <= STATE_EXEC;
+            end
+
           end else begin
-            cpu_state <= STATE_WB;
+            // Execute ALU operation and determine branches
+            alu_out_reg <= alu_out;
+            // Handle branches and jumps
+            if (is_jal_reg) begin
+              pc_reg <= pc_plus_imm;
+            end else if (is_jalr_reg) begin
+              pc_reg <= {alu_out[31:1], 1'b0};
+            end else if (take_branch) begin
+              pc_reg <= pc_plus_imm;
+            end else if (!mem_read_reg && !mem_write_reg) begin
+              // No memory operation, go directly to WB
+              pc_reg <= pc_plus_4;
+            end
+
+            // Set up memory request if needed
+            if (mem_read_reg || mem_write_reg) begin
+              dmem_req_valid_reg <= 1'b1;
+              dmem_req_write_reg <= mem_write_reg;
+              dmem_req_addr_reg <= alu_out;
+
+              // Prepare write data with proper alignment
+              if (mem_write_reg) begin
+
+                if (mem_mask_reg == 32'h000000FF) begin
+                  // Byte store
+                  dmem_req_wdata_reg <= {4{rdata2_reg[7:0]}};
+                  dmem_req_wmask_reg <= (alu_out[1:0] == 2'b00) ? 4'b0001 :
+                                        (alu_out[1:0] == 2'b01) ? 4'b0010 :
+                                        (alu_out[1:0] == 2'b10) ? 4'b0100 : 4'b1000;
+                end else if (mem_mask_reg == 32'h0000FFFF) begin
+                  // Halfword store
+                  dmem_req_wdata_reg <= {2{rdata2_reg[15:0]}};
+                  dmem_req_wmask_reg <= alu_out[1] ? 4'b1100 : 4'b0011;
+                end else begin
+                  // Word store
+                  dmem_req_wdata_reg <= rdata2_reg;
+                  dmem_req_wmask_reg <= 4'b1111;
+                end
+              end
+              cpu_state <= STATE_MEM;
+            end else begin
+              cpu_state <= STATE_WB;
+            end
           end
         end
-
         STATE_MEM: begin
 
           // Handle memory operations
