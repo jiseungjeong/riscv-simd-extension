@@ -32,8 +32,9 @@ module vreg_file(
     integer i;
     initial begin
         for (i = 0; i < 32; i = i + 1) begin
-            vregs[i] <= 64'd0;
+            vregs[i] = 64'd0;  // Use blocking assignment in initial block
         end
     end
 endmodule
+
 
