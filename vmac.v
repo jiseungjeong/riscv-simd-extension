@@ -67,22 +67,17 @@ module vmac(
                     valid_out <= 1'b1;
                     computing <= 1'b0;
                 end
-                2'b01: begin // PVMUL 4 cycles
+                2'b01: begin // PVMUL 2 cycles (2 parallel multiplies)
                     case (cycle_counter)
                         3'd0: begin
+                            // 2 parallel multiplies
                             mult_results[0] <= a0_signed * b0_signed;
-                            cycle_counter <= cycle_counter + 1'b1;
-                        end
-                        3'd1: begin
                             mult_results[1] <= a1_signed * b1_signed;
                             cycle_counter <= cycle_counter + 1'b1;
                         end
-                        3'd2: begin
+                        3'd1: begin
                             result[15:0] <= mult_results[0];
                             result[31:16] <= mult_results[1];
-                            cycle_counter <= cycle_counter + 1'b1;
-                        end
-                        3'd3: begin
                             valid_out <= 1'b1;
                             computing <= 1'b0;
                             cycle_counter <= 3'b0;
@@ -92,25 +87,17 @@ module vmac(
                         end
                     endcase
                 end
-                2'b10: begin // PVMAC 5 cycles
+                2'b10: begin // PVMAC 2 cycles (4 multipliers)
                     case (cycle_counter)
                         3'd0: begin
+                            // 4 parallel multiplies
                             mult_results[0] <= a0_signed * b0_signed;
-                            cycle_counter <= cycle_counter + 1'b1;
-                        end
-                        3'd1: begin
                             mult_results[1] <= a1_signed * b1_signed;
-                            cycle_counter <= cycle_counter + 1'b1;
-                        end
-                        3'd2: begin
                             mult_results[2] <= a2_signed * b2_signed;
-                            cycle_counter <= cycle_counter + 1'b1;
-                        end
-                        3'd3: begin
                             mult_results[3] <= a3_signed * b3_signed;
                             cycle_counter <= cycle_counter + 1'b1;
                         end
-                        3'd4: begin
+                        3'd1: begin
                             // sign extend 16-bit to 32-bit and accumulate
                             result <= {mult_results[0][15] ? 16'hFFFF : 16'h0000, mult_results[0]} +
                                       {mult_results[1][15] ? 16'hFFFF : 16'h0000, mult_results[1]} +
@@ -125,22 +112,17 @@ module vmac(
                         end
                     endcase
                 end
-                2'b11: begin // PVMUL_UPPER 4 cycles
+                2'b11: begin // PVMUL_UPPER 2 cycles (2 parallel multiplies)
                     case (cycle_counter)
                         3'd0: begin
+                            // 2 parallel multiplies
                             mult_results[0] <= a2_signed * b2_signed;
-                            cycle_counter <= cycle_counter + 1'b1;
-                        end
-                        3'd1: begin
                             mult_results[1] <= a3_signed * b3_signed;
                             cycle_counter <= cycle_counter + 1'b1;
                         end
-                        3'd2: begin
+                        3'd1: begin
                             result[15:0] <= mult_results[0];
                             result[31:16] <= mult_results[1];
-                            cycle_counter <= cycle_counter + 1'b1;
-                        end
-                        3'd3: begin
                             valid_out <= 1'b1;
                             computing <= 1'b0;
                             cycle_counter <= 3'b0;

@@ -194,34 +194,28 @@ module valu(
                 end
 
                 OP_VMAC: begin
-                    // multi-cycle MAC (reuse Lab 7 timing)
-                    // SEW=8: 5 cycles (4 cycles multiply + 1 cycle sum)
-                    // SEW=16: 3 cycles (2 cycles multiply + 1 cycle sum)
-                    // SEW=32: 3 cycles (2 cycles multiply + 1 cycle sum)
+                    // multi-cycle MAC with 4 multipliers (fair comparison)
+                    // SEW=8:  8 multiplies, 4 per cycle = 2 cycles + 1 sum = 3 cycles
+                    // SEW=16: 4 multiplies, 4 per cycle = 1 cycle  + 1 sum = 2 cycles
+                    // SEW=32: 2 multiplies, 2 per cycle = 1 cycle  + 1 sum = 2 cycles
                     case (sew)
-                        SEW_8: begin // 8 multiplies, 2 per cycle = 4 cycles + 1 sum = 5 cycles
+                        SEW_8: begin // 8 multiplies, 4 per cycle = 2 cycles + 1 sum = 3 cycles
                             case (mul_counter)
                                 3'd0: begin
                                     mac8_prod[0] <= $signed(a8[0]) * $signed(b8[0]);
                                     mac8_prod[1] <= $signed(a8[1]) * $signed(b8[1]);
-                                    mul_counter <= mul_counter + 1'b1;
-                                end
-                                3'd1: begin
                                     mac8_prod[2] <= $signed(a8[2]) * $signed(b8[2]);
                                     mac8_prod[3] <= $signed(a8[3]) * $signed(b8[3]);
                                     mul_counter <= mul_counter + 1'b1;
                                 end
-                                3'd2: begin
+                                3'd1: begin
                                     mac8_prod[4] <= $signed(a8[4]) * $signed(b8[4]);
                                     mac8_prod[5] <= $signed(a8[5]) * $signed(b8[5]);
-                                    mul_counter <= mul_counter + 1'b1;
-                                end
-                                3'd3: begin
                                     mac8_prod[6] <= $signed(a8[6]) * $signed(b8[6]);
                                     mac8_prod[7] <= $signed(a8[7]) * $signed(b8[7]);
                                     mul_counter <= mul_counter + 1'b1;
                                 end
-                                3'd4: begin
+                                3'd2: begin
                                     // sum all 8 products
                                     result <= {32'd0, 
                                         {{16{mac8_prod[0][15]}}, mac8_prod[0]} + 
@@ -239,19 +233,16 @@ module valu(
                                 default: mul_counter <= 3'd0;
                             endcase
                         end
-                        SEW_16: begin // 4 multiplies, 2 per cycle = 2 cycles + 1 sum = 3 cycles
+                        SEW_16: begin // 4 multiplies, 4 per cycle = 1 cycle + 1 sum = 2 cycles
                             case (mul_counter)
                                 3'd0: begin
                                     mac16_prod[0] <= $signed(a16[0]) * $signed(b16[0]);
                                     mac16_prod[1] <= $signed(a16[1]) * $signed(b16[1]);
-                                    mul_counter <= mul_counter + 1'b1;
-                                end
-                                3'd1: begin
                                     mac16_prod[2] <= $signed(a16[2]) * $signed(b16[2]);
                                     mac16_prod[3] <= $signed(a16[3]) * $signed(b16[3]);
                                     mul_counter <= mul_counter + 1'b1;
                                 end
-                                3'd2: begin
+                                3'd1: begin
                                     // sum all 4 products
                                     result <= {32'd0, mac16_prod[0] + mac16_prod[1] + 
                                                       mac16_prod[2] + mac16_prod[3]};
@@ -262,17 +253,14 @@ module valu(
                                 default: mul_counter <= 3'd0;
                             endcase
                         end
-                        SEW_32: begin // 2 multiplies, 1 per cycle = 2 cycles + 1 sum = 3 cycles
+                        SEW_32: begin // 2 multiplies, 2 per cycle = 1 cycle + 1 sum = 2 cycles
                             case (mul_counter)
                                 3'd0: begin
                                     mac32_prod[0] <= $signed(a32[0]) * $signed(b32[0]);
-                                    mul_counter <= mul_counter + 1'b1;
-                                end
-                                3'd1: begin
                                     mac32_prod[1] <= $signed(a32[1]) * $signed(b32[1]);
                                     mul_counter <= mul_counter + 1'b1;
                                 end
-                                3'd2: begin
+                                3'd1: begin
                                     // sum 2 products (truncate to 32-bit)
                                     result <= {32'd0, mac32_prod[0][31:0] + mac32_prod[1][31:0]};
                                     valid_out <= 1'b1;
@@ -290,31 +278,25 @@ module valu(
                 end
 
                 OP_VMUL: begin
-                    // multi-cycle based on SEW
+                    // multi-cycle with 4 multipliers
                     case (sew)
-                        SEW_8: begin // 8 multiplies, 2 per cycle = 4 cycles
+                        SEW_8: begin // 8 multiplies, 4 per cycle = 2 cycles + 1 result = 3 cycles
                             case (mul_counter)
                                 3'd0: begin
                                     mul8[0] <= a8[0] * b8[0];
                                     mul8[1] <= a8[1] * b8[1];
-                                    mul_counter <= mul_counter + 1'b1;
-                                end
-                                3'd1: begin
                                     mul8[2] <= a8[2] * b8[2];
                                     mul8[3] <= a8[3] * b8[3];
                                     mul_counter <= mul_counter + 1'b1;
                                 end
-                                3'd2: begin
+                                3'd1: begin
                                     mul8[4] <= a8[4] * b8[4];
                                     mul8[5] <= a8[5] * b8[5];
-                                    mul_counter <= mul_counter + 1'b1;
-                                end
-                                3'd3: begin
                                     mul8[6] <= a8[6] * b8[6];
                                     mul8[7] <= a8[7] * b8[7];
                                     mul_counter <= mul_counter + 1'b1;
                                 end
-                                3'd4: begin
+                                3'd2: begin
                                     result <= {mul8[7], mul8[6], mul8[5], mul8[4],
                                              mul8[3], mul8[2], mul8[1], mul8[0]};
                                     valid_out <= 1'b1;
@@ -324,19 +306,16 @@ module valu(
                                 default :mul_counter <= 3'd0;
                             endcase
                         end
-                        SEW_16: begin // 4 multiplies, 2 per cycle = 2 cycles
+                        SEW_16: begin // 4 multiplies, 4 per cycle = 1 cycle + 1 result = 2 cycles
                             case (mul_counter)
                                 3'd0: begin
                                     mul16[0] <= a16[0] * b16[0];
                                     mul16[1] <= a16[1] * b16[1];
-                                    mul_counter <= mul_counter + 1'b1;
-                                end
-                                3'd1: begin
                                     mul16[2] <= a16[2] * b16[2];
                                     mul16[3] <= a16[3] * b16[3];
                                     mul_counter <= mul_counter + 1'b1;
                                 end
-                                3'd2: begin
+                                3'd1: begin
                                     result <= {mul16[3], mul16[2], mul16[1], mul16[0]};
                                     valid_out <= 1'b1;
                                     computing <= 1'b0;
@@ -345,17 +324,14 @@ module valu(
                                 default :mul_counter <= 3'd0;
                             endcase
                         end
-                        SEW_32: begin // 2 multiplies, 1 per cycle = 1 cycle
+                        SEW_32: begin // 2 multiplies, 2 per cycle = 1 cycle + 1 result = 2 cycles
                             case (mul_counter)
                                 3'd0: begin
                                     mul32[0] <= a32[0] * b32[0];
-                                    mul_counter <= mul_counter + 1'b1;
-                                end
-                                3'd1: begin
                                     mul32[1] <= a32[1] * b32[1];
                                     mul_counter <= mul_counter + 1'b1;
                                 end
-                                3'd2: begin
+                                3'd1: begin
                                     result <= {mul32[1], mul32[0]};
                                     valid_out <= 1'b1;
                                     computing <= 1'b0;
