@@ -18,6 +18,7 @@ module valu(
     localparam OP_VADD = 2'b00;
     localparam OP_VSUB = 2'b01;
     localparam OP_VMUL = 2'b10;
+    localparam OP_VMAC = 2'b11;  // 8-lane multiply-accumulate (result = sum of products)
     
     // SEW codes
     localparam SEW_8 = 2'b00;
@@ -107,6 +108,48 @@ module valu(
                                              sub8[3], sub8[2], sub8[1], sub8[0]} :
                         (sew == SEW_16) ? {sub16[3], sub16[2], sub16[1], sub16[0]} :
                                         {sub32[1], sub32[0]};
+    
+    // VMAC: multiply-accumulate (sum of products) - SEW dependent
+    // Result is 32-bit scalar stored in lower 32 bits of result
+    
+    // SEW=8: 8 lanes, int8 * int8 = 16-bit products, sum to 32-bit
+    wire signed [15:0] prod8_mac [0:7];
+    generate
+        for (i = 0; i < 8; i = i + 1) begin: gen_vmac_prod8
+            assign prod8_mac[i] = $signed(a8[i]) * $signed(b8[i]);
+        end
+    endgenerate
+    wire signed [31:0] vmac_sum_8;
+    assign vmac_sum_8 = {{16{prod8_mac[0][15]}}, prod8_mac[0]} + {{16{prod8_mac[1][15]}}, prod8_mac[1]} + 
+                        {{16{prod8_mac[2][15]}}, prod8_mac[2]} + {{16{prod8_mac[3][15]}}, prod8_mac[3]} +
+                        {{16{prod8_mac[4][15]}}, prod8_mac[4]} + {{16{prod8_mac[5][15]}}, prod8_mac[5]} + 
+                        {{16{prod8_mac[6][15]}}, prod8_mac[6]} + {{16{prod8_mac[7][15]}}, prod8_mac[7]};
+    
+    // SEW=16: 4 lanes, int16 * int16 = 32-bit products, sum to 32-bit (truncated)
+    wire signed [31:0] prod16_mac [0:3];
+    generate
+        for (j = 0; j < 4; j = j + 1) begin: gen_vmac_prod16
+            assign prod16_mac[j] = $signed(a16[j]) * $signed(b16[j]);
+        end
+    endgenerate
+    wire signed [31:0] vmac_sum_16;
+    assign vmac_sum_16 = prod16_mac[0] + prod16_mac[1] + prod16_mac[2] + prod16_mac[3];
+    
+    // SEW=32: 2 lanes, int32 * int32 = 64-bit products, sum to 32-bit (truncated)
+    wire signed [63:0] prod32_mac [0:1];
+    generate
+        for (k = 0; k < 2; k = k + 1) begin: gen_vmac_prod32
+            assign prod32_mac[k] = $signed(a32[k]) * $signed(b32[k]);
+        end
+    endgenerate
+    wire signed [31:0] vmac_sum_32;
+    assign vmac_sum_32 = prod32_mac[0][31:0] + prod32_mac[1][31:0];
+    
+    // Select VMAC result based on SEW
+    wire signed [31:0] vmac_sum;
+    assign vmac_sum = (sew == SEW_8)  ? vmac_sum_8  :
+                      (sew == SEW_16) ? vmac_sum_16 :
+                                        vmac_sum_32;
 
     // 3. multi-cycle VMUL
 
@@ -141,6 +184,13 @@ module valu(
                 OP_VSUB: begin
                     // single cycle
                     result <= vsub_result;
+                    valid_out <= 1'b1;
+                    computing <= 1'b0;
+                end
+
+                OP_VMAC: begin
+                    // single cycle: 8-lane MAC, result is 32-bit scalar
+                    result <= {32'd0, vmac_sum};  // store in lower 32 bits
                     valid_out <= 1'b1;
                     computing <= 1'b0;
                 end
