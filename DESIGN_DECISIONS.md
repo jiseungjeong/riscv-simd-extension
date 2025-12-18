@@ -89,31 +89,40 @@ funct7[6:5] = SEW encoding
 ## 4. Multiply Implementation
 
 ### Decision
-- **Multi-cycle VMAC** (reuse Lab 7 timing pattern)
-- **Sequential multipliers** (2 multiplies per cycle, resource sharing)
+- **Multi-cycle VMAC** with **4 multipliers** (fair comparison across SEW values)
+- **Parallel multipliers** (4 multiplies per cycle)
 - **Result truncation**: Product truncated to element width
 
-### Implementation Details
+### Implementation Details (4 Multipliers - Fair Comparison)
 
-| SEW | Multiplies | Cycles | Description |
-|-----|------------|--------|-------------|
-| 8-bit | 8 | **5 cycles** | 2/cycle × 4 + 1 sum |
-| 16-bit | 4 | **3 cycles** | 2/cycle × 2 + 1 sum |
-| 32-bit | 2 | **3 cycles** | 1/cycle × 2 + 1 sum |
+| Instruction | Lanes | Multiplies | Mul Cycles (4/cycle) | Sum Cycle | **Total** |
+|-------------|-------|------------|----------------------|-----------|-----------|
+| ~~PVMAC (1 mul)~~ | 4 | 4 | 4/1 = 4 | 1 | ~~5 cycles~~ |
+| PVMAC (4 mul) | 4 | 4 | 4/4 = 1 | 1 | **2 cycles** |
+| VMAC.B | 8 | 8 | 8/4 = 2 | 1 | **3 cycles** |
+| VMAC.H | 4 | 4 | 4/4 = 1 | 1 | **2 cycles** |
+| VMAC.W | 2 | 2 | 2/4 = 1 | 1 | **2 cycles** |
+
+### Throughput Comparison (4 Multipliers)
+
+| Instruction | Lanes | Latency | MACs/cycle |
+|-------------|-------|---------|------------|
+| VMAC.B | 8 | 3 cycles | 8/3 = **2.67** |
+| PVMAC (4 mul) | 4 | 2 cycles | 4/2 = **2.00** |
+| VMAC.H | 4 | 2 cycles | 4/2 = **2.00** |
+| VMAC.W | 2 | 2 cycles | 2/2 = **1.00** |
 
 ### Rationale
-1. **Lab 7 consistency**: Follows PVMAC multi-cycle pattern (project requirement)
-2. **Resource sharing**: 2 multipliers shared across cycles (area efficient)
+1. **Fair comparison**: All Wide VMAC use 4 multipliers (consistent hardware cost)
+2. **Resource efficiency**: 4 multipliers provide good balance of area vs performance
 3. **Stall logic reuse**: Extends Lab 5/7 multi-cycle operation handling
 4. **Predictable timing**: Clear latency for pipeline scheduling
 
-### Execution Timeline (SEW=8, 5 cycles)
+### Execution Timeline (VMAC.B with 4 multipliers, 3 cycles)
 ```
-Cycle 0: prod[0] = a[0]*b[0], prod[1] = a[1]*b[1]
-Cycle 1: prod[2] = a[2]*b[2], prod[3] = a[3]*b[3]
-Cycle 2: prod[4] = a[4]*b[4], prod[5] = a[5]*b[5]
-Cycle 3: prod[6] = a[6]*b[6], prod[7] = a[7]*b[7]
-Cycle 4: result = sum(prod[0:7])  ← Adder tree
+Cycle 0: prod[0:3] = a[0:3] * b[0:3]  (4 parallel multiplies)
+Cycle 1: prod[4:7] = a[4:7] * b[4:7]  (4 parallel multiplies)
+Cycle 2: result = sum(prod[0:7])       (adder tree)
 ```
 
 ---

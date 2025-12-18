@@ -66,24 +66,37 @@ Full MNIST handwritten digit classification using a 2-layer MLP.
 - **Weights**: Pre-transposed for contiguous vector access
 - **Measurement**: Single inference cycle count
 
-### Results (All SEW Values)
+### Results (All SEW Values - 4 Multipliers)
 
-| Implementation | SEW | Lanes | Latency | Cycles | Speedup vs Scalar |
-|----------------|-----|-------|---------|--------|-------------------|
-| **Scalar** (no SIMD) | - | 1 | 1 cycle | 916,946 | 1.00× (baseline) |
-| **PVMAC** (Lab 7) | 8-bit | 4 | 5 cycles | 275,250 | **3.33×** |
-| **VMAC.B** (Wide) | 8-bit | 8 | 5 cycles | 183,146 | **5.01×** |
-| **VMAC.H** (Wide) | 16-bit | 4 | 3 cycles | 351,642 | **2.61×** |
-| **VMAC.W** (Wide) | 32-bit | 2 | 3 cycles | 701,026 | **1.31×** |
+All VMAC instructions use **4 multipliers** for fair comparison.
+
+| Implementation | SEW | Lanes | Multipliers | Latency | Cycles | Speedup vs Scalar |
+|----------------|-----|-------|-------------|---------|--------|-------------------|
+| **Scalar** (no SIMD) | - | 1 | 1 | 1 cycle | 916,946 | 1.00× (baseline) |
+| ~~PVMAC (1 mul)~~ | 8-bit | 4 | 1 | 5 cycles | ~~275,250~~ | ~~3.33×~~ |
+| **PVMAC (4 mul)** | 8-bit | 4 | 4 | 2 cycles | 256,194 | **3.58×** |
+| **VMAC.B** (Wide) | 8-bit | 8 | 4 | 3 cycles | 176,794 | **5.19×** |
+| **VMAC.H** (Wide) | 16-bit | 4 | 4 | 2 cycles | 345,290 | **2.66×** |
+| **VMAC.W** (Wide) | 32-bit | 2 | 4 | 2 cycles | 688,322 | **1.33×** |
+
+### Timing Breakdown (4 Multipliers)
+
+| Instruction | Lanes | Multiplies | Mul Cycles (4/cycle) | Sum Cycle | **Total** |
+|-------------|-------|------------|----------------------|-----------|-----------|
+| PVMAC (4 mul) | 4 | 4 | 4/4 = 1 | 1 | **2 cycles** |
+| VMAC.B | 8 | 8 | 8/4 = 2 | 1 | **3 cycles** |
+| VMAC.H | 4 | 4 | 4/4 = 1 | 1 | **2 cycles** |
+| VMAC.W | 2 | 2 | 2/4 = 1 | 1 | **2 cycles** |
 
 ### Speedup Visualization
 
 ```
-Scalar:  ████████████████████████████████████████████████████ 916,946 cycles (1.00×)
-VMAC.W:  ██████████████████████████████████████ 701,026 cycles (1.31×)
-VMAC.H:  ███████████████████ 351,642 cycles (2.61×)
-PVMAC:   ███████████████ 275,250 cycles (3.33×)
-VMAC.B:  ██████████ 183,146 cycles (5.01×)
+Scalar:      ████████████████████████████████████████████████████ 916,946 cycles (1.00×)
+VMAC.W:      █████████████████████████████████████ 688,322 cycles (1.33×)
+VMAC.H:      ██████████████████ 345,290 cycles (2.66×)
+PVMAC(1mul): ██████████████ 275,250 cycles (3.33×) ← Lab 7 Original
+PVMAC(4mul): █████████████ 256,194 cycles (3.58×) ← Fair Comparison
+VMAC.B:      █████████ 176,794 cycles (5.19×)
 ```
 
 ### Performance Breakdown by SEW
@@ -96,11 +109,11 @@ VMAC.B:  ██████████ 183,146 cycles (5.01×)
 
 ### Analysis
 
-1. **VMAC.B is optimal** for INT8 MNIST: Maximum lanes (8) = minimum iterations
-2. **Multi-cycle VMAC**: Reuses Lab 7 timing (5 cycles for SEW=8, 3 cycles for SEW=16/32)
-3. **VMAC.H slower than PVMAC**: Despite same 4 lanes, INT16 data requires 2× memory
+1. **VMAC.B is optimal** for INT8 MNIST: Maximum lanes (8) = minimum iterations = **5.19× speedup**
+2. **Fair comparison with 4 multipliers**: VMAC.B takes 3 cycles, VMAC.H/W take 2 cycles
+3. **VMAC.H slower than PVMAC**: Despite same 4 lanes and faster latency (2 vs 5 cycles), INT16 data requires 2× memory
 4. **VMAC.W slowest vector**: Only 2 lanes, 4× memory footprint vs INT8
-5. **Memory bandwidth is key**: All vector instructions load 8 bytes, but wider SEW = fewer elements
+5. **Throughput (MACs/cycle)**: VMAC.B=8/3=2.67, VMAC.H=4/2=2.00, VMAC.W=2/2=1.00, PVMAC=4/5=0.80
 
 ### Key Optimizations
 
@@ -190,19 +203,20 @@ The 64-bit Wide Vector Extension provides significant performance improvements:
 
 ### Scalar vs Vector Comparison (README.md 4.4.6 Requirement)
 
-| Benchmark | Scalar | VMAC.W | VMAC.H | PVMAC | VMAC.B |
-|-----------|--------|--------|--------|-------|--------|
+| Benchmark | Scalar | VMAC.W | VMAC.H | PVMAC (4mul) | VMAC.B |
+|-----------|--------|--------|--------|--------------|--------|
 | Lanes | 1 | 2 | 4 | 4 | 8 |
-| Latency | 1 cycle | 3 cycles | 3 cycles | 5 cycles | 5 cycles |
-| MNIST MLP | 1.00× | 1.31× | 2.61× | 3.33× | **5.01×** |
+| Multipliers | 1 | 4 | 4 | 4 | 4 |
+| Latency | 1 cycle | 2 cycles | 2 cycles | 2 cycles | 3 cycles |
+| MNIST MLP | 1.00× | 1.33× | 2.66× | 3.58× | **5.19×** |
 
 ### Key Findings
 
-1. **Vector instructions provide 1.3-5.0× speedup** over scalar code
+1. **Vector instructions provide 1.3-5.2× speedup** over scalar code
 2. **VMAC.B (8 lanes) is optimal** for INT8 workloads like MNIST
-3. **Multi-cycle VMAC**: Reuses Lab 7 timing pattern (consistent design)
+3. **Fair 4-multiplier design**: All instructions use 4 multipliers for consistent hardware cost
 4. **SEW selection matters**: Wider elements = fewer lanes = lower throughput
-5. **VMAC.H < PVMAC**: Despite same lane count, INT16 memory overhead hurts
+5. **PVMAC vs VMAC.H**: Same lanes (4) and latency (2 cycles), but INT8 < INT16 memory overhead
 
 ### Future Optimizations
 1. Hardware support for strided vector loads (eliminate weight transposition)
