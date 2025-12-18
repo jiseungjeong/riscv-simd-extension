@@ -4,7 +4,7 @@
 
 ## Platform
 
-- **Tested**: macOS 14.x (Sonoma), Apple Silicon (M1/M2/M3)
+- **Tested**: macOS Sequoia 15.6, Apple M1
 - **Compatible**: Ubuntu 22.04, WSL2
 
 ## Prerequisites
