@@ -5,7 +5,6 @@
 ## Platform
 
 - **Tested**: macOS Sequoia 15.6, Apple M1
-- **Compatible**: Ubuntu 22.04, WSL2
 
 ## Prerequisites
 
