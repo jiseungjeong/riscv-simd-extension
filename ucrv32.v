@@ -121,12 +121,24 @@ module ucrv32 (
   reg        is_vmac_reg;
   reg [1:0]  vmac_ctrl_reg;
 
+  // 7.6 Performance counters (from Lab 5)
+  reg [31:0] cycle_counter;
+  reg [31:0] insn_counter;
+  reg [31:0] load_counter;
+  reg [31:0] store_counter;
+
+  // 7.6 Performance counter control signals
+  reg        is_rdwrctr_reg;
+  reg        rdwrctr_wen_reg;
+  reg [1:0]  rdwrctr_ctr_id_reg;
+
   // new vector extension control registers
   reg        is_vec_op_reg;
   reg [2:0]  vec_op_reg;
   reg [1:0]  vec_sew_reg;
   reg        is_vec_load_reg;
   reg        is_vec_store_reg;
+  reg        is_vec_vmac_reg;  // VMAC.B: result goes to scalar register
   reg        vec_reg_write_reg;
   reg [4:0] vd_reg; // vector destination register
   reg vec_busy;
@@ -158,6 +170,11 @@ module ucrv32 (
   wire        dec_is_vmac;
   wire [1:0]  dec_vmac_ctrl;
 
+  // 7.6 Performance counter decoder outputs
+  wire        dec_is_rdwrctr;
+  wire        dec_rdwrctr_wen;
+  wire [1:0]  dec_rdwrctr_ctr_id;
+
   // new vector decoder outputs
   wire        dec_is_vec_op;
   wire [2:0]  dec_vec_op;
@@ -165,6 +182,7 @@ module ucrv32 (
   wire        dec_is_vec_load;
   wire        dec_is_vec_store;
   wire        dec_vec_reg_write;
+  wire        dec_is_vec_vmac;
 
   // 7.3 VMAC handshake + result wires
   reg        vmac_valid_in_reg;
@@ -197,13 +215,18 @@ module ucrv32 (
     // 7.3 VMAC decoder outputs
     .is_vmac(dec_is_vmac),
     .vmac_ctrl(dec_vmac_ctrl),
+    // 7.6 Performance counter decoder outputs
+    .is_rdwrctr(dec_is_rdwrctr),
+    .rdwrctr_wen(dec_rdwrctr_wen),
+    .rdwrctr_ctr_id(dec_rdwrctr_ctr_id),
     // new vector decoder outputs
     .is_vec_op(dec_is_vec_op),
     .vec_op(dec_vec_op),
     .vec_sew(dec_vec_sew),
     .is_vec_load(dec_is_vec_load),
     .is_vec_store(dec_is_vec_store),
-    .vec_reg_write(dec_vec_reg_write)
+    .vec_reg_write(dec_vec_reg_write),
+    .is_vec_vmac(dec_is_vec_vmac)
   );
 
   // 7.3 VMAC instance
@@ -389,6 +412,9 @@ module ucrv32 (
 
   assign wb_data = (is_jal_reg || is_jalr_reg) ? pc_plus_4 :
                    wb_from_mem_reg ? mem_data_extended :
+                   is_vmac_reg ? alu_out_reg :  // VMAC result stored in alu_out_reg
+                   is_rdwrctr_reg ? alu_out_reg :  // RDWRCTR result
+                   is_vec_vmac_reg ? alu_out_reg :  // VMAC.B (wide vec) result
                    alu_out_reg;
 
   assign wb_enable = (cpu_state == STATE_WB) && reg_write_reg;
@@ -423,12 +449,22 @@ module ucrv32 (
       is_vmac_reg <= 1'b0;
       vmac_ctrl_reg <= 2'b00;
       
+      // 7.6 Performance counter reset
+      cycle_counter <= 32'd0;
+      insn_counter <= 32'd0;
+      load_counter <= 32'd0;
+      store_counter <= 32'd0;
+      is_rdwrctr_reg <= 1'b0;
+      rdwrctr_wen_reg <= 1'b0;
+      rdwrctr_ctr_id_reg <= 2'b00;
+
       // new vector reset
       is_vec_op_reg <= 1'b0;
       vec_op_reg <= 3'b000;
       vec_sew_reg <= 2'b00;
       is_vec_load_reg <= 1'b0;
       is_vec_store_reg <= 1'b0;
+      is_vec_vmac_reg <= 1'b0;
       vec_reg_write_reg <= 1'b0;
       vd_reg <= 5'd0;
       vec_busy <= 1'b0;
@@ -438,6 +474,8 @@ module ucrv32 (
       vs2_data_reg <= 64'd0;
       vec_result_reg <= 64'd0;
     end else begin
+      // 7.6 Performance counters: always increment cycle counter
+      cycle_counter <= cycle_counter + 32'd1;
       case (cpu_state)
         STATE_FETCH: begin
           insn_reg <= imem_rdata;
@@ -472,12 +510,18 @@ module ucrv32 (
           is_vmac_reg <= dec_is_vmac;
           vmac_ctrl_reg <= dec_vmac_ctrl;
 
+          // 7.6 Performance counter control signals
+          is_rdwrctr_reg <= dec_is_rdwrctr;
+          rdwrctr_wen_reg <= dec_rdwrctr_wen;
+          rdwrctr_ctr_id_reg <= dec_rdwrctr_ctr_id;
+
           // new vector control signals
           is_vec_op_reg <= dec_is_vec_op;
           vec_op_reg <= dec_vec_op;
           vec_sew_reg <= dec_vec_sew;
           is_vec_load_reg <= dec_is_vec_load;
           is_vec_store_reg <= dec_is_vec_store;
+          is_vec_vmac_reg <= dec_is_vec_vmac;
           vec_reg_write_reg <= dec_vec_reg_write;
           vd_reg <= dec_rd;
           vs1_data_reg <= vrf_rdata1; // read vector operands
@@ -487,8 +531,33 @@ module ucrv32 (
         end
 
         STATE_EXEC: begin
+          // 7.6 RDWRCTR operation
+          if (is_rdwrctr_reg) begin
+            // DEBUG: Print RDWRCTR execution
+            $display("[RDWRCTR] PC=%h, wen=%b, ctr_id=%d, cycle=%d, rd=%d", pc_saved, rdwrctr_wen_reg, rdwrctr_ctr_id_reg, cycle_counter, rd_reg);
+            if (rdwrctr_wen_reg) begin
+              // Write rs1 to selected counter
+              case (rdwrctr_ctr_id_reg)
+                2'b00: cycle_counter <= rdata1_reg;
+                2'b01: insn_counter <= rdata1_reg;
+                2'b10: load_counter <= rdata1_reg;
+                2'b11: store_counter <= rdata1_reg;
+              endcase
+            end else begin
+              // Read selected counter to rd
+              case (rdwrctr_ctr_id_reg)
+                2'b00: alu_out_reg <= cycle_counter;
+                2'b01: alu_out_reg <= insn_counter;
+                2'b10: alu_out_reg <= load_counter;
+                2'b11: alu_out_reg <= store_counter;
+                default: alu_out_reg <= 32'h0;
+              endcase
+            end
+            pc_reg <= pc_plus_4;
+            cpu_state <= STATE_WB;
+
           // new vector operation
-          if (is_vec_op_reg) begin
+          end else if (is_vec_op_reg) begin
             if (!vec_busy) begin
               // start vector operation
               vec_busy <= 1'b1;
@@ -516,9 +585,14 @@ module ucrv32 (
                 cpu_state <= STATE_EXEC;
               end
             end else begin
-              // VALU operation (VADD, VSUB, VMUL)
+              // VALU operation (VADD, VSUB, VMUL, VMAC)
               if (valu_valid_out) begin
-                vec_result_reg <= valu_result;
+                if (is_vec_vmac_reg) begin
+                  // VMAC.B: result is 32-bit scalar in lower bits
+                  alu_out_reg <= valu_result[31:0];
+                end else begin
+                  vec_result_reg <= valu_result;
+                end
                 pc_reg <= pc_plus_4;
                 vec_busy <= 1'b0;
                 vec_valid_in_reg <= 1'b0;
@@ -603,8 +677,8 @@ module ucrv32 (
               // Store completes when request is accepted
               pc_reg <= pc_plus_4;
               cpu_state <= STATE_WB;
-
-
+              // 7.6 Performance counter: increment store counter
+              store_counter <= store_counter + 32'd1;
             end
             // For loads, stay in MEM and wait for response
           end else if (!dmem_req_valid_reg && mem_read_reg) begin
@@ -613,16 +687,23 @@ module ucrv32 (
               mem_data_reg <= dmem_resp_rdata;
               pc_reg <= pc_plus_4;
               cpu_state <= STATE_WB;
+              // 7.6 Performance counter: increment load counter
+              load_counter <= load_counter + 32'd1;
             end
           end
         
         end
 
         STATE_WB: begin
+          // DEBUG: Print RDWRCTR writeback
+          if (is_rdwrctr_reg && reg_write_reg) begin
+            $display("[RDWRCTR_WB] rd=x%0d, wb_data=%d, alu_out=%d", rd_reg, wb_data, alu_out_reg);
+          end
           reg_write_reg <= 1'b0;
           vec_reg_write_reg <= 1'b0;
           cpu_state <= STATE_FETCH;
-          
+          // 7.6 Performance counter: increment instruction counter
+          insn_counter <= insn_counter + 32'd1;
         end
 
         default: begin
