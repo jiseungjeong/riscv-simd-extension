@@ -69,3 +69,4 @@ tools/llvm-project*.tar.xz
 tools/llvm-build/
 tools/llvm-install/
 # Note: tools/llvm-project*/ source is tracked if modified
+*.dis
