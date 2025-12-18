@@ -31,13 +31,19 @@ module decoder_control (
   output is_vmac,
   output reg [1:0] vmac_ctrl,
 
+  // 7.6 Performance counter signals (from Lab 5)
+  output            is_rdwrctr,
+  output            rdwrctr_wen,
+  output [1:0]      rdwrctr_ctr_id,
+
   // new vector extension signals
   output is_vec_op,
   output reg [2:0] vec_op,
   output reg [1:0] vec_sew, // element width (00=8, 01=16, 10=32)
   output is_vec_load,
   output is_vec_store,
-  output vec_reg_write
+  output vec_reg_write,
+  output is_vec_vmac  // VMAC.B writes to scalar register
 );
 
   // Extract fields from instruction
@@ -55,6 +61,8 @@ module decoder_control (
   wire is_j_type = (opcode == 7'b1101111);
   // 7.2 VMAC type
   wire is_vmac_type = (opcode == 7'b1011011) && (funct3 == 3'b001);  // Opcode=0x5B, funct3=001
+  // 7.6 RDWRCTR type (from Lab 5)
+  wire is_rdwrctr_type = (opcode == 7'b1011011) && (funct3 == 3'b000);  // Opcode=0x5B, funct3=000
 
   // new vector extension types
   // opcode=0x5B, funct3=010 for new vector instructions
@@ -64,6 +72,7 @@ module decoder_control (
   localparam VOP_VADD = 5'b00000;
   localparam VOP_VSUB = 5'b00001;
   localparam VOP_VMUL = 5'b00010;
+  localparam VOP_VMAC = 5'b00011;     // 8-lane MAC (multiply-accumulate, result is scalar)
   localparam VOP_VLD = 5'b00100;
   localparam VOP_VST = 5'b00101;
   localparam VOP_VMOV_S2V = 5'b01000; // scalar to vector
@@ -147,14 +156,15 @@ module decoder_control (
   always @(*) begin
     if (is_vec_type) begin
       case (funct7[4:0])
-        VOP_VADD: vec_op = 3'b000; // VADD
-        VOP_VSUB: vec_op = 3'b001; // VSUB
-        VOP_VMUL: vec_op = 3'b010; // VMUL
-        VOP_VLD: vec_op = 3'b011; // VLD
-        VOP_VST: vec_op = 3'b100; // VST
-        VOP_VMOV_S2V: vec_op = 3'b101; // VMOV_S2V
-        VOP_VMOV_V2S: vec_op = 3'b110; // VMOV_V2S
-        default: vec_op = 3'b111; // invalid
+        VOP_VADD: vec_op = 3'b000; // VADD -> VALU op=00
+        VOP_VSUB: vec_op = 3'b001; // VSUB -> VALU op=01
+        VOP_VMUL: vec_op = 3'b010; // VMUL -> VALU op=10
+        VOP_VMAC: vec_op = 3'b011; // VMAC -> VALU op=11 (8-lane MAC, scalar result)
+        VOP_VLD:  vec_op = 3'b100; // VLD
+        VOP_VST:  vec_op = 3'b101; // VST
+        VOP_VMOV_S2V: vec_op = 3'b110; // VMOV_S2V
+        VOP_VMOV_V2S: vec_op = 3'b111; // VMOV_V2S
+        default: vec_op = 3'b000;
       endcase
     end else begin
       vec_op = 3'b000;
@@ -165,8 +175,12 @@ module decoder_control (
   assign is_vec_op = is_vec_type;
   assign is_vec_load = is_vec_type && (funct7[4:0] == VOP_VLD);
   assign is_vec_store = is_vec_type && (funct7[4:0] == VOP_VST);
+  
+  // is_vec_vmac: VMAC result goes to scalar register, not vector register
+  assign is_vec_vmac = is_vec_type && (funct7[4:0] == VOP_VMAC);
 
   // write to vector register for: VADD, VSUB, VMUL, VLD, VMOV_S2V
+  // Note: VMAC writes to scalar register, not vector register
   assign vec_reg_write = is_vec_type &&
                           (funct7[4:0] == VOP_VADD ||
                            funct7[4:0] == VOP_VSUB ||
@@ -215,11 +229,18 @@ module decoder_control (
   assign is_lui   = (is_u_type && opcode == 7'b0110111);
   
   // 7.2 modified reg_write
-  assign reg_write = (!is_b_type && !is_s_type && !is_vec_type) || is_vmac_type;
+  // 7.6 added RDWRCTR read (not write)
+  // VMAC.B (vec_type) also writes to scalar register
+  assign reg_write = (!is_b_type && !is_s_type && !is_vec_type) || is_vmac_type || (is_rdwrctr_type && !insn[31]) || is_vec_vmac;
 
   assign ebreak_hit = (is_i_type && opcode == 7'b1110011) && (funct3 == 3'b000);
 
   // 7.2 modified is_vmac
   assign is_vmac = is_vmac_type;
+
+  // 7.6 Performance counter signals (from Lab 5)
+  assign is_rdwrctr = is_rdwrctr_type;
+  assign rdwrctr_wen = is_rdwrctr_type && insn[31];  // imm[11] is insn[31], 1=write, 0=read
+  assign rdwrctr_ctr_id = insn[21:20];  // imm[1:0] is insn[21:20], counter ID
 
 endmodule
