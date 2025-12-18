@@ -10,7 +10,9 @@
 // With PTY:    Creates virtual terminal device (use_local_pty = 0)
 
 #include <verilated.h>
+#if VM_TRACE
 #include <verilated_vcd_c.h>
+#endif
 #include <cstdio>
 #include <cstdlib>
 #include <unistd.h>
@@ -51,7 +53,9 @@ char slave_name[128];
 // Global variables for signal handler
 volatile sig_atomic_t interrupted = 0;
 volatile sig_atomic_t ebreak_hit = 0;
+#if VM_TRACE
 VerilatedVcdC* global_tfp = nullptr;
+#endif
 Vtop* global_dut = nullptr;
 
 void signal_handler(int signum) {
@@ -69,6 +73,7 @@ void* ebreak_monitor_thread(void* arg) {
     if (global_dut != nullptr && global_dut->break_hit) {
       fflush(stdout);
       printf("\n[EBREAK] Break detected, terminating simulation...\n");
+      // Note: cycle count will be printed in main loop
       ebreak_hit = 1;
       break;
     }
@@ -267,13 +272,15 @@ int main(int argc, char** argv) {
   fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
 #endif
 
-  Verilated::traceEverOn(true);
   Vtop* dut = new Vtop;
+#if VM_TRACE
+  Verilated::traceEverOn(true);
   VerilatedVcdC* tfp = new VerilatedVcdC;
   dut->trace(tfp, 99);
   printf("Opening %s for output...\n", vcd_path);
   tfp->open(vcd_path);
   global_tfp = tfp;
+#endif
   global_dut = dut;
 
   // Start EBREAK monitor thread
@@ -311,9 +318,12 @@ int main(int argc, char** argv) {
   }
 
 
-  dut->clk = 0;    dut->eval();  tfp->dump(0);
-  dut->clk = 1;    dut->eval();  tfp->dump(1);
-  dut->resetn = 1; dut->eval();  tfp->dump(2);
+  dut->clk = 0;    dut->eval();
+  dut->clk = 1;    dut->eval();
+  dut->resetn = 1; dut->eval();
+#if VM_TRACE
+  tfp->dump(0); tfp->dump(1); tfp->dump(2);
+#endif
 
   dut->rootp->top__DOT__sim_use_par_txrx = 1;
   auto par_txrx = dut->rootp->top__DOT__sim_use_par_txrx;
@@ -380,10 +390,14 @@ int main(int argc, char** argv) {
 
     dut->clk = 0;
     dut->eval();
-    tfp->dump(time_counter++);
     dut->clk = 1;
     dut->eval();
+#if VM_TRACE
     tfp->dump(time_counter++);
+    tfp->dump(time_counter++);
+#else
+    time_counter += 2;
+#endif
 
     
 
@@ -420,8 +434,15 @@ int main(int argc, char** argv) {
   interrupted = 1;
   pthread_join(monitor_thread, nullptr);
 
+  // Print simulation statistics
+  printf("\n=== Simulation Statistics ===\n");
+  printf("Total cycles: %d\n", cycle);
+  printf("==============================\n");
+
+#if VM_TRACE
   tfp->close();
   delete tfp;
+#endif
 
   // Print dmem contents from 0x0 to 0xc at end of simulation
   fprintf(trace_file, "\n# Data Memory Contents (0x0 to 0xc):\n");
@@ -444,6 +465,8 @@ int main(int argc, char** argv) {
   }
 #endif
 
+#if VM_TRACE
   printf("[UART] VCD saved to %s\n", vcd_path);
+#endif
   return 0;
 }
