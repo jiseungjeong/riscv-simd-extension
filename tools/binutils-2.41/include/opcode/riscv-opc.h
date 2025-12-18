@@ -2982,6 +2982,18 @@
 #define MATCH_VMUL_W      0x8400205b
 #define MASK_VMUL_W       0xfe00707f
 
+/* VMAC - multiply-accumulate (result is 32-bit scalar sum) */
+/* funct7[4:0]=00011, funct7[6:5]=SEW, funct3=010, opcode=0x5B */
+/* VMAC.B: SEW=00 (8-bit, 8 lanes) */
+#define MATCH_VMAC_B      0x0600205b
+#define MASK_VMAC_B       0xfe00707f
+/* VMAC.H: SEW=01 (16-bit, 4 lanes) */
+#define MATCH_VMAC_H      0x2600205b
+#define MASK_VMAC_H       0xfe00707f
+/* VMAC.W: SEW=10 (32-bit, 2 lanes) */
+#define MATCH_VMAC_W      0x4600205b
+#define MASK_VMAC_W       0xfe00707f
+
 /* VLD  */
 #define MATCH_VLD         0x0800205b
 #define MASK_VLD          0xfff0707f  /* rs2=0 enforced for 2-operand format */

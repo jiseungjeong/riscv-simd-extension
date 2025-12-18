@@ -357,6 +357,9 @@ const struct riscv_opcode riscv_opcodes[] =
 {"vmul.b",    0, INSN_CLASS_I, "d,s,t", MATCH_VMUL_B, MASK_VMUL_B, match_opcode, 0},
 {"vmul.h",    0, INSN_CLASS_I, "d,s,t", MATCH_VMUL_H, MASK_VMUL_H, match_opcode, 0},
 {"vmul.w",    0, INSN_CLASS_I, "d,s,t", MATCH_VMUL_W, MASK_VMUL_W, match_opcode, 0},
+{"vmac.b",    0, INSN_CLASS_I, "d,s,t", MATCH_VMAC_B, MASK_VMAC_B, match_opcode, 0},
+{"vmac.h",    0, INSN_CLASS_I, "d,s,t", MATCH_VMAC_H, MASK_VMAC_H, match_opcode, 0},
+{"vmac.w",    0, INSN_CLASS_I, "d,s,t", MATCH_VMAC_W, MASK_VMAC_W, match_opcode, 0},
 {"vld",       0, INSN_CLASS_I, "d,s",   MATCH_VLD,    MASK_VLD,    match_opcode, 0},
 {"vst",       0, INSN_CLASS_I, "d,s,t", MATCH_VST,    MASK_VST,    match_opcode, 0},
 
