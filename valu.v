@@ -151,15 +151,20 @@ module valu(
                       (sew == SEW_16) ? vmac_sum_16 :
                                         vmac_sum_32;
 
-    // 3. multi-cycle VMUL
+    // 3. multi-cycle VMUL and VMAC
 
     reg [2:0] mul_counter;
     reg computing;
 
-    // multiply results storage
+    // multiply results storage for VMUL
     reg [7:0] mul8 [0:7];
     reg [15:0] mul16 [0:3];
     reg [31:0] mul32 [0:1];
+    
+    // multiply results storage for VMAC (products before summation)
+    reg signed [15:0] mac8_prod [0:7];   // 8-bit * 8-bit = 16-bit
+    reg signed [31:0] mac16_prod [0:3];  // 16-bit * 16-bit = 32-bit
+    reg signed [63:0] mac32_prod [0:1];  // 32-bit * 32-bit = 64-bit
 
     always @(posedge clk) begin
         if (!rst_n) begin
@@ -189,10 +194,99 @@ module valu(
                 end
 
                 OP_VMAC: begin
-                    // single cycle: 8-lane MAC, result is 32-bit scalar
-                    result <= {32'd0, vmac_sum};  // store in lower 32 bits
-                    valid_out <= 1'b1;
-                    computing <= 1'b0;
+                    // multi-cycle MAC (reuse Lab 7 timing)
+                    // SEW=8: 5 cycles (4 cycles multiply + 1 cycle sum)
+                    // SEW=16: 3 cycles (2 cycles multiply + 1 cycle sum)
+                    // SEW=32: 3 cycles (2 cycles multiply + 1 cycle sum)
+                    case (sew)
+                        SEW_8: begin // 8 multiplies, 2 per cycle = 4 cycles + 1 sum = 5 cycles
+                            case (mul_counter)
+                                3'd0: begin
+                                    mac8_prod[0] <= $signed(a8[0]) * $signed(b8[0]);
+                                    mac8_prod[1] <= $signed(a8[1]) * $signed(b8[1]);
+                                    mul_counter <= mul_counter + 1'b1;
+                                end
+                                3'd1: begin
+                                    mac8_prod[2] <= $signed(a8[2]) * $signed(b8[2]);
+                                    mac8_prod[3] <= $signed(a8[3]) * $signed(b8[3]);
+                                    mul_counter <= mul_counter + 1'b1;
+                                end
+                                3'd2: begin
+                                    mac8_prod[4] <= $signed(a8[4]) * $signed(b8[4]);
+                                    mac8_prod[5] <= $signed(a8[5]) * $signed(b8[5]);
+                                    mul_counter <= mul_counter + 1'b1;
+                                end
+                                3'd3: begin
+                                    mac8_prod[6] <= $signed(a8[6]) * $signed(b8[6]);
+                                    mac8_prod[7] <= $signed(a8[7]) * $signed(b8[7]);
+                                    mul_counter <= mul_counter + 1'b1;
+                                end
+                                3'd4: begin
+                                    // sum all 8 products
+                                    result <= {32'd0, 
+                                        {{16{mac8_prod[0][15]}}, mac8_prod[0]} + 
+                                        {{16{mac8_prod[1][15]}}, mac8_prod[1]} + 
+                                        {{16{mac8_prod[2][15]}}, mac8_prod[2]} + 
+                                        {{16{mac8_prod[3][15]}}, mac8_prod[3]} +
+                                        {{16{mac8_prod[4][15]}}, mac8_prod[4]} + 
+                                        {{16{mac8_prod[5][15]}}, mac8_prod[5]} + 
+                                        {{16{mac8_prod[6][15]}}, mac8_prod[6]} + 
+                                        {{16{mac8_prod[7][15]}}, mac8_prod[7]}};
+                                    valid_out <= 1'b1;
+                                    computing <= 1'b0;
+                                    mul_counter <= 3'd0;
+                                end
+                                default: mul_counter <= 3'd0;
+                            endcase
+                        end
+                        SEW_16: begin // 4 multiplies, 2 per cycle = 2 cycles + 1 sum = 3 cycles
+                            case (mul_counter)
+                                3'd0: begin
+                                    mac16_prod[0] <= $signed(a16[0]) * $signed(b16[0]);
+                                    mac16_prod[1] <= $signed(a16[1]) * $signed(b16[1]);
+                                    mul_counter <= mul_counter + 1'b1;
+                                end
+                                3'd1: begin
+                                    mac16_prod[2] <= $signed(a16[2]) * $signed(b16[2]);
+                                    mac16_prod[3] <= $signed(a16[3]) * $signed(b16[3]);
+                                    mul_counter <= mul_counter + 1'b1;
+                                end
+                                3'd2: begin
+                                    // sum all 4 products
+                                    result <= {32'd0, mac16_prod[0] + mac16_prod[1] + 
+                                                      mac16_prod[2] + mac16_prod[3]};
+                                    valid_out <= 1'b1;
+                                    computing <= 1'b0;
+                                    mul_counter <= 3'd0;
+                                end
+                                default: mul_counter <= 3'd0;
+                            endcase
+                        end
+                        SEW_32: begin // 2 multiplies, 1 per cycle = 2 cycles + 1 sum = 3 cycles
+                            case (mul_counter)
+                                3'd0: begin
+                                    mac32_prod[0] <= $signed(a32[0]) * $signed(b32[0]);
+                                    mul_counter <= mul_counter + 1'b1;
+                                end
+                                3'd1: begin
+                                    mac32_prod[1] <= $signed(a32[1]) * $signed(b32[1]);
+                                    mul_counter <= mul_counter + 1'b1;
+                                end
+                                3'd2: begin
+                                    // sum 2 products (truncate to 32-bit)
+                                    result <= {32'd0, mac32_prod[0][31:0] + mac32_prod[1][31:0]};
+                                    valid_out <= 1'b1;
+                                    computing <= 1'b0;
+                                    mul_counter <= 3'd0;
+                                end
+                                default: mul_counter <= 3'd0;
+                            endcase
+                        end
+                        default: begin
+                            valid_out <= 1'b1;
+                            computing <= 1'b0;
+                        end
+                    endcase
                 end
 
                 OP_VMUL: begin

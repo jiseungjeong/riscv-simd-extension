@@ -89,29 +89,31 @@ funct7[6:5] = SEW encoding
 ## 4. Multiply Implementation
 
 ### Decision
-- **Single-cycle VMAC** (multiply-accumulate to scalar)
-- **Combinational multipliers** (no pipelining)
+- **Multi-cycle VMAC** (reuse Lab 7 timing pattern)
+- **Sequential multipliers** (2 multiplies per cycle, resource sharing)
 - **Result truncation**: Product truncated to element width
 
 ### Implementation Details
 
-| SEW | Multipliers | Product Width | Final Result |
-|-----|-------------|---------------|--------------|
-| 8-bit | 8 × (8×8) | 16-bit each | 32-bit sum |
-| 16-bit | 4 × (16×16) | 32-bit each | 32-bit sum |
-| 32-bit | 2 × (32×32) | 64-bit each | 64-bit sum |
+| SEW | Multiplies | Cycles | Description |
+|-----|------------|--------|-------------|
+| 8-bit | 8 | **5 cycles** | 2/cycle × 4 + 1 sum |
+| 16-bit | 4 | **3 cycles** | 2/cycle × 2 + 1 sum |
+| 32-bit | 2 | **3 cycles** | 1/cycle × 2 + 1 sum |
 
 ### Rationale
-1. **VMAC focus**: Primary use case is dot product (ML inference)
-2. **Single-cycle**: Avoids stall logic complexity
-3. **Scalar result**: Sum of products fits naturally in scalar register
-4. **Trade-off**: Higher area (parallel multipliers) vs lower latency
+1. **Lab 7 consistency**: Follows PVMAC multi-cycle pattern (project requirement)
+2. **Resource sharing**: 2 multipliers shared across cycles (area efficient)
+3. **Stall logic reuse**: Extends Lab 5/7 multi-cycle operation handling
+4. **Predictable timing**: Clear latency for pipeline scheduling
 
-### Resource Sharing
+### Execution Timeline (SEW=8, 5 cycles)
 ```
-VMAC.B: 8 multipliers (8×8), then 8-input adder tree
-VMAC.H: 4 multipliers (16×16), then 4-input adder tree
-VMAC.W: 2 multipliers (32×32), then 2-input adder
+Cycle 0: prod[0] = a[0]*b[0], prod[1] = a[1]*b[1]
+Cycle 1: prod[2] = a[2]*b[2], prod[3] = a[3]*b[3]
+Cycle 2: prod[4] = a[4]*b[4], prod[5] = a[5]*b[5]
+Cycle 3: prod[6] = a[6]*b[6], prod[7] = a[7]*b[7]
+Cycle 4: result = sum(prod[0:7])  ← Adder tree
 ```
 
 ---
@@ -234,8 +236,8 @@ funct7[4:0] = Operation code
 |----------|--------------|-----------|
 | VLEN=64 (8 lanes) | 50% fewer iterations | 2× register file |
 | Configurable SEW | Optimal for data type | 15% mux overhead |
-| Single-cycle VMAC | No stall cycles | 8 parallel multipliers |
+| Multi-cycle VMAC | Lab 7 consistent | 2 shared multipliers |
 | Multi-cycle VLD | 4× fewer than scalar | Minimal (FSM only) |
 
-**Overall**: 5.38× speedup on MNIST vs scalar, with moderate area increase.
+**Overall**: 5.01× speedup on MNIST vs scalar, with Lab 7 consistent design.
 
