@@ -1,0 +1,102 @@
+diff --git a/include/opcode/riscv-opc.h b/include/opcode/riscv-opc.h
+index 90f44153..b9fbea7f 100644
+--- a/include/opcode/riscv-opc.h
++++ b/include/opcode/riscv-opc.h
+@@ -2946,6 +2946,62 @@
+ #define CSR_VL 0xc20
+ #define CSR_VTYPE 0xc21
+ #define CSR_VLENB 0xc22
++
++// lab 7.7: Custom packed vector instructions
++#define MATCH_PVADD       0x0000105b
++#define MASK_PVADD        0xfe00707f
++#define MATCH_PVMUL       0x0200105b
++#define MASK_PVMUL        0xfe00707f
++#define MATCH_PVMAC       0x0400105b
++#define MASK_PVMAC        0xfe00707f
++#define MATCH_PVMUL_UPPER 0x0600105b
++#define MASK_PVMUL_UPPER  0xfe00707f
++
++/* Wide Vector Extension Instructions  */
++/* VADD  */
++#define MATCH_VADD_B      0x0000205b
++#define MASK_VADD_B       0xfe00707f
++#define MATCH_VADD_H      0x4000205b
++#define MASK_VADD_H       0xfe00707f
++#define MATCH_VADD_W      0x8000205b
++#define MASK_VADD_W       0xfe00707f
++
++/* VSUB  */
++#define MATCH_VSUB_B      0x0200205b
++#define MASK_VSUB_B       0xfe00707f
++#define MATCH_VSUB_H      0x4200205b
++#define MASK_VSUB_H       0xfe00707f
++#define MATCH_VSUB_W      0x8200205b
++#define MASK_VSUB_W       0xfe00707f
++
++/* VMUL  */
++#define MATCH_VMUL_B      0x0400205b
++#define MASK_VMUL_B       0xfe00707f
++#define MATCH_VMUL_H      0x4400205b
++#define MASK_VMUL_H       0xfe00707f
++#define MATCH_VMUL_W      0x8400205b
++#define MASK_VMUL_W       0xfe00707f
++
++/* VMAC - multiply-accumulate (result is 32-bit scalar sum) */
++/* funct7[4:0]=00011, funct7[6:5]=SEW, funct3=010, opcode=0x5B */
++/* VMAC.B: SEW=00 (8-bit, 8 lanes) */
++#define MATCH_VMAC_B      0x0600205b
++#define MASK_VMAC_B       0xfe00707f
++/* VMAC.H: SEW=01 (16-bit, 4 lanes) */
++#define MATCH_VMAC_H      0x2600205b
++#define MASK_VMAC_H       0xfe00707f
++/* VMAC.W: SEW=10 (32-bit, 2 lanes) */
++#define MATCH_VMAC_W      0x4600205b
++#define MASK_VMAC_W       0xfe00707f
++
++/* VLD  */
++#define MATCH_VLD         0x0800205b
++#define MASK_VLD          0xfff0707f  /* rs2=0 enforced for 2-operand format */
++
++/* VST  */
++#define MATCH_VST         0x0a00205b
++#define MASK_VST          0xfe00707f  /* d,s,t format - rd specified by assembler */
++
+ #endif /* RISCV_ENCODING_H */
+ #ifdef DECLARE_INSN
+ DECLARE_INSN(slli_rv32, MATCH_SLLI_RV32, MASK_SLLI_RV32)
+diff --git a/opcodes/riscv-opc.c b/opcodes/riscv-opc.c
+index 533e3f4a..3834fd68 100644
+--- a/opcodes/riscv-opc.c
++++ b/opcodes/riscv-opc.c
+@@ -339,6 +339,30 @@ const struct riscv_opcode riscv_opcodes[] =
+ {"prefetch.w",  0, INSN_CLASS_ZICBOP, "Wif(s)", MATCH_PREFETCH_W, MASK_PREFETCH_W, match_opcode, 0 },
+ {"pause",       0, INSN_CLASS_ZIHINTPAUSE, "", MATCH_PAUSE, MASK_PAUSE, match_opcode, 0 },
+ 
++// lab 7.7: Custom packed vector instructions
++{"pvadd",       0, INSN_CLASS_I, "d,s,t", MATCH_PVADD, MASK_PVADD, match_opcode, 0},
++{"pvmul",       0, INSN_CLASS_I, "d,s,t", MATCH_PVMUL, MASK_PVMUL, match_opcode, 0},
++{"pvmac",       0, INSN_CLASS_I, "d,s,t", MATCH_PVMAC, MASK_PVMAC, match_opcode, 0},
++{"pvmul_upper", 0, INSN_CLASS_I, "d,s,t", MATCH_PVMUL_UPPER, MASK_PVMUL_UPPER, match_opcode, 0},
++
++
++/*  Wide Vector Extension Instructions  */
++/* Format: vd, vs1, vs2 for arithmetic; vd, rs1 for load; vs2, rs1 for store */
++{"vadd.b",    0, INSN_CLASS_I, "d,s,t", MATCH_VADD_B, MASK_VADD_B, match_opcode, 0},
++{"vadd.h",    0, INSN_CLASS_I, "d,s,t", MATCH_VADD_H, MASK_VADD_H, match_opcode, 0},
++{"vadd.w",    0, INSN_CLASS_I, "d,s,t", MATCH_VADD_W, MASK_VADD_W, match_opcode, 0},
++{"vsub.b",    0, INSN_CLASS_I, "d,s,t", MATCH_VSUB_B, MASK_VSUB_B, match_opcode, 0},
++{"vsub.h",    0, INSN_CLASS_I, "d,s,t", MATCH_VSUB_H, MASK_VSUB_H, match_opcode, 0},
++{"vsub.w",    0, INSN_CLASS_I, "d,s,t", MATCH_VSUB_W, MASK_VSUB_W, match_opcode, 0},
++{"vmul.b",    0, INSN_CLASS_I, "d,s,t", MATCH_VMUL_B, MASK_VMUL_B, match_opcode, 0},
++{"vmul.h",    0, INSN_CLASS_I, "d,s,t", MATCH_VMUL_H, MASK_VMUL_H, match_opcode, 0},
++{"vmul.w",    0, INSN_CLASS_I, "d,s,t", MATCH_VMUL_W, MASK_VMUL_W, match_opcode, 0},
++{"vmac.b",    0, INSN_CLASS_I, "d,s,t", MATCH_VMAC_B, MASK_VMAC_B, match_opcode, 0},
++{"vmac.h",    0, INSN_CLASS_I, "d,s,t", MATCH_VMAC_H, MASK_VMAC_H, match_opcode, 0},
++{"vmac.w",    0, INSN_CLASS_I, "d,s,t", MATCH_VMAC_W, MASK_VMAC_W, match_opcode, 0},
++{"vld",       0, INSN_CLASS_I, "d,s",   MATCH_VLD,    MASK_VLD,    match_opcode, 0},
++{"vst",       0, INSN_CLASS_I, "d,s,t", MATCH_VST,    MASK_VST,    match_opcode, 0},
++
+ /* Basic RVI instructions and aliases.  */
+ {"unimp",       0, INSN_CLASS_C, "",          0, 0xffffU, match_opcode, INSN_ALIAS },
+ {"unimp",       0, INSN_CLASS_I, "",          MATCH_CSRRW|(CSR_CYCLE << OP_SH_CSR), 0xffffffffU,  match_opcode, 0 }, /* csrw cycle, x0  */

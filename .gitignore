@@ -62,7 +62,8 @@ tools/binutils-build/
 tools/binutils-install/
 tools/binutils-build.log
 tools/binutils-configure.log
-# Note: tools/binutils-2.*/ source is tracked for custom instruction modifications
+# Extracted source - recreate with tools/prepare_binutils.sh (custom changes live in tools/binutils-*-simd.patch)
+tools/binutils-2.*/
 
 # LLVM build artifacts (tools/)
 tools/llvm-project*.tar.xz

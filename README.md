@@ -20,7 +20,7 @@ sudo apt install verilator gcc-riscv64-unknown-elf python3
 
 ```bash
 # 1. Build toolchain (first time only)
-cd tools && ./download_binutils.sh && ./configure_binutils.sh && ./build_binutils.sh && cd ..
+cd tools && ./download_binutils.sh && ./prepare_binutils.sh && ./configure_binutils.sh && ./build_binutils.sh && cd ..
 
 # 2. Build & run benchmark
 cd sw/mnist-newlib && make firmware32_mnist_sew.hex && cd ../..
@@ -46,7 +46,7 @@ bash test_top.sh sw/mnist-newlib/firmware32_mnist_sew.hex
 ├── decoder_control.v    # Instruction decoder
 ├── ucrv32.v             # CPU integration
 ├── sw/mnist-newlib/     # Benchmark programs
-├── tools/binutils-2.41/ # Custom assembler
+├── tools/binutils-2.41-simd.patch # Custom assembler changes
 ├── BENCHMARK_RESULTS.md # Detailed results
 └── DESIGN_DECISIONS.md  # Design rationale
 ```
