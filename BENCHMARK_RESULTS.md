@@ -234,6 +234,6 @@ The 64-bit Wide Vector Extension provides significant performance improvements:
 | `vlsu.v` | New | Vector load/store unit |
 | `decoder_control.v` | Modified | Vector instruction decoding |
 | `ucrv32.v` | Modified | CPU integration |
-| `tools/binutils-2.41/` | Modified | Custom instruction support |
+| `tools/binutils-2.41-simd.patch` | New | Custom instruction support (patch for binutils 2.41) |
 | `sw/mnist-newlib/benchmark_*.c` | New | Benchmark programs |
 
